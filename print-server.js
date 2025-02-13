@@ -72,7 +72,7 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                     y: topPosition,
                     height: 40 * scaleY,
                     item: {
-                        x: 11 * scaleX,
+                        x: 8 * scaleX,
                         width: 80 * scaleX
                     },
                     weight: {
@@ -84,11 +84,11 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                         width: 76 * scaleX
                     },
                     making: {
-                        x: 255 * scaleX,
+                        x: 253 * scaleX,
                         width: 80 * scaleX
                     },
                     price: {
-                        x: 335 * scaleX,
+                        x: 336 * scaleX,
                         width: 80 * scaleX
                     }
                 };
@@ -176,22 +176,22 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 </style>
 
                 <!-- Date Section -->
-                <rect x="${dateSection.x+90}" y="${dateSection.y-20}" 
+                <rect x="${dateSection.x+155}" y="${dateSection.y-36}" 
                       width="${dateSection.width}" height="${dateSection.height}" 
                       fill="rgba(0, 0, 0, 0)" />
-                <text x="${dateSection.x+90 + (dateSection.width/2)}" 
-                      y="${dateSection.y + (dateSection.height/2)-20}"
+                <text x="${dateSection.x+155 + (dateSection.width/2)}" 
+                      y="${dateSection.y + (dateSection.height/2)-36}"
                       font-size="${8 * scaleY}" font-weight="bold"
                       text-anchor="middle" alignment-baseline="middle">
                     ${formattedDate}
                 </text>
 
                 <!-- Price Section -->
-                <rect x="${priceSection.x-110}" y="${priceSection.y-60}" 
+                <rect x="${priceSection.x-190}" y="${priceSection.y-60}" 
                       width="${priceSection.width/2}" height="${priceSection.height-100}" 
-                      fill="rgba(0, 0, 0, 0.1)" />
-                <text x="${priceSection.x-110 + (priceSection.width/2)}" 
-                      y="${priceSection.y + (priceSection.height/2)-60}"
+                      fill="rgba(0, 0, 0, 0)" />
+                <text x="${priceSection.x-190 + (priceSection.width/2)}" 
+                      y="${priceSection.y + (priceSection.height/2)-105}"
                       font-size="${8 * scaleY}" font-weight="bold"
                       text-anchor="middle" alignment-baseline="middle">
                     ${invoiceData.metal === 'gold' ? invoiceData.Gold_price : invoiceData.silver_price}
@@ -303,18 +303,18 @@ app.post('/print', async (req, res) => {
         const printCommand = `lp -d ${printerName} -o media=A5 -o fit-to-page -o quality=high -o resolution=600x600 ${tempImagePath}`;
         await execPromise(printCommand);
 
-        // Save a copy for quality verification (optional)
-        const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
-        await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
-        await fs.copyFile(tempImagePath, debugPath);
+        //to save the printed pdf
 
-        await fs.unlink(tempImagePath);
+        // Save a copy for quality verification (optional)
+        // const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
+        // await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
+        // await fs.copyFile(tempImagePath, debugPath);
+
+        // await fs.unlink(tempImagePath);
 
         res.json({ 
             success: true, 
             message: `Invoice printed successfully to ${printerName}`,
-            printer: printerName,
-            debugPath // For development purposes
         });
     } catch (error) {
         console.error('Error printing invoice:', error);
