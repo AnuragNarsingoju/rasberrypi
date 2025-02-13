@@ -1,9 +1,0 @@
-
-
-                <rect x="${320 * scaleX}" y="${480 * scaleY}" 
-                      width="${100 * scaleX}" height="${20 * scaleY}" 
-                      fill="rgba(0, 0, 0, 0.1)" />
-                <text x="${344 * scaleX}" y="${480 * scaleY}" 
-                      font-size="${8 * scaleY}" font-weight="bold">
-                    ${invoiceData['sale price']}
-                </text>
