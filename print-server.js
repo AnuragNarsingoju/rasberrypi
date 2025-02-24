@@ -1,29 +1,52 @@
 const express = require('express');
 const sharp = require('sharp');
 const path = require('path');
-const { exec } = require('child_process');
 const util = require('util');
 const fs = require('fs').promises;
-const execPromise = util.promisify(exec);
 const cors = require('cors');
-
+const { exec } = require('child_process');
+const execPromise = util.promisify(exec);
 const app = express();
 const port = 3003;
+const recentPrintRequests = new Map();
+const corsOptions = {
+    origin: ['https://www.nbjshop.in'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+};
 
-app.use(cors());
+app.use(cors(corsOptions));
+
+const validateOrigin = (req, res, next) => {
+    const allowedOrigins = ['https://www.nbjshop.in'];
+    if (!allowedOrigins.includes(req.headers.origin)) {
+        return res.status(403).json({ error: 'Unauthorized request' });
+    }
+    next();
+};
+app.use(validateOrigin);
+
+
 app.use(express.json());
 
 async function listPrinters() {
     try {
-        const { stdout } = await execPromise('lpstat -p');
-        return stdout.split('\n')
-            .filter(line => line.startsWith('printer'))
-            .map(line => line.split(' ')[1]);
+        let command;
+        command = 'powershell.exe -Command "Get-Printer | Select-Object -ExpandProperty Name"';
+        const { stdout } = await execPromise(command);
+        const printers = stdout
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+        return printers;
     } catch (error) {
         console.error('Error listing printers:', error);
-        throw error;
+        return { error: error.message };
     }
 }
+
+
 
 async function createInvoiceImage(baseImagePath, invoiceData) {
     try {
@@ -54,7 +77,7 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
             height: 30 * scaleY
         };
 
-        // Format date
+
         const [datePart] = invoiceData.time.split(" ");
         const [year, month, day] = datePart.split("/");
         const formattedDate = `${day}-${month}-${year}`;
@@ -164,7 +187,6 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
             }
         }
 
-        // Create complete SVG overlay
         const svgOverlay = `
             <svg width="${originalWidth}" height="${originalHeight}">
                 <style>
@@ -268,14 +290,17 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
 }
 
 app.get('/printers', async (req, res) => {
-    try {
-        const printers = await listPrinters();
-        res.json({ printers });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+        try {
+            const printers = await listPrinters();
+            res.json({ printers });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+// Modified printer listing function for Windows
 
+
+// In your app.post('/print') route, replace only the printer command section with this:
 app.post('/print', async (req, res) => {
     try {
         const invoiceData = req.body;
@@ -284,28 +309,86 @@ app.post('/print', async (req, res) => {
             return res.status(400).json({ error: 'Missing required invoice data' });
         }
 
+        const requestKey = JSON.stringify({
+            time: invoiceData.time,
+            items: invoiceData.item,
+            total: invoiceData.total
+        });
+
+        // Check if this request has been processed recently
+        if (recentPrintRequests.has(requestKey)) {
+            const lastRequestTime = recentPrintRequests.get(requestKey);
+            const timeSinceLastRequest = Date.now() - lastRequestTime;
+            
+            if (timeSinceLastRequest < 30000) { // 30 seconds in milliseconds
+                return res.status(429).json({ 
+                    error: 'Please wait 30sec before submitting the same print request again',
+                    remainingTime: Math.ceil((30000 - timeSinceLastRequest) / 1000) // Remaining time in seconds
+                });
+            }
+        }
+
+        // Record this request time
+        recentPrintRequests.set(requestKey, Date.now());
+        
+        // Clean up old entries from the Map periodically
+        if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
+            const now = Date.now();
+            for (const [key, timestamp] of recentPrintRequests.entries()) {
+                if (now - timestamp > 30000) {
+                    recentPrintRequests.delete(key);
+                }
+            }
+        }
+
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        const tempImagePath = path.join(tempDir, `invoice-${Date.now()}.png`);
+        const tempImagePath = path.join(tempDir, `invoice.png`);
         
         const baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
         const printImage = await createInvoiceImage(baseImagePath, invoiceData);
         await fs.writeFile(tempImagePath, printImage);
 
         const printers = await listPrinters();
-        const printerName = printers[2];
+        // const printerName = printers[2]; // Keeping your original printer selection
+        const printerName = '"EPSON L3250 Series (Copy 1)"'; 
+        
 
         if (!printerName) {
             throw new Error('No printer found');
         }
 
-        // Updated print command with quality settings
-        const printCommand = `lp -d ${printerName} -o media=A5 -o fit-to-page -o quality=high -o resolution=600x600 ${tempImagePath}`;
-        await execPromise(printCommand);
+        // Windows-specific print command
+        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fill-paper,portrait,res=600x600,quality=high', '${tempImagePath}' ` 
+    + `-NoNewWindow -Wait`;
+
+
+    
+
+    
+
+        // const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+        // + `-ArgumentList '-silent -print-to "EPSON L3250 Series" -print-settings "paper=A5,fit-to-page,res=600x600,quality=high" "${tempImagePath}"' `
+        // + `-NoNewWindow -Wait`;
+
+
+        exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error: ${error.message}`);
+                return;
+            }
+            if (stderr) {
+                console.error(`stderr: ${stderr}`);
+                return;
+            }
+            console.log(`stdout: ${stdout}`);
+        });
+
 
         //to save the printed pdf
 
-        // Save a copy for quality verification (optional)
+        // // Save a copy for quality verification (optional)
         // const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
         // await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
         // await fs.copyFile(tempImagePath, debugPath);
@@ -316,6 +399,7 @@ app.post('/print', async (req, res) => {
             success: true, 
             message: `Invoice printed successfully to ${printerName}`,
         });
+        
     } catch (error) {
         console.error('Error printing invoice:', error);
         res.status(500).json({ error: error.message });
@@ -326,7 +410,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-app.listen(port, () => {
+app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
 });
