@@ -16,6 +16,8 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 };
 
+const { PDFDocument } = require('pdf-lib');
+
 app.use(cors(corsOptions));
 
 const validateOrigin = (req, res, next) => {
@@ -46,6 +48,38 @@ async function listPrinters() {
     }
 }
 
+
+
+async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
+
+    const printImage = await createInvoiceImage(baseImagePath, invoiceData);
+
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([148 * 2.83465, 210 * 2.83465]); // A5 size in points
+
+    const image = await pdfDoc.embedPng(printImage);
+    page.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: page.getWidth(),
+        height: page.getHeight()
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    await fs.writeFile(outputPDFPath, pdfBytes);
+}
+
+async function generateInvoicePDF(invoiceData) {
+    const tempDir = path.join(__dirname, 'temp');
+    await fs.mkdir(tempDir, { recursive: true });
+
+    const baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
+    const tempPDFPath = path.join(tempDir, `invoice.pdf`);
+
+    await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
+
+    return tempPDFPath;
+}
 
 
 async function createInvoiceImage(baseImagePath, invoiceData) {
@@ -343,15 +377,9 @@ app.post('/print', async (req, res) => {
 
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        const tempImagePath = path.join(tempDir, `invoice.png`);
-        
-        const baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
-        const printImage = await createInvoiceImage(baseImagePath, invoiceData);
-        await fs.writeFile(tempImagePath, printImage);
+        const tempPDFPath = await generateInvoicePDF(invoiceData);
 
-        const printers = await listPrinters();
-        // const printerName = printers[2]; // Keeping your original printer selection
-        const printerName = '"EPSON L3250 Series (Copy 1)"'; 
+        const printerName = '"Samsung M2020 Series"'; 
         
 
         if (!printerName) {
@@ -359,9 +387,18 @@ app.post('/print', async (req, res) => {
         }
 
         // Windows-specific print command
-        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
-    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fill-paper,portrait,res=600x600,quality=high', '${tempImagePath}' ` 
+        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
     + `-NoNewWindow -Wait`;
+
+    
+
+
+
+    
+
+    console.log("hello");
+
 
 
     
