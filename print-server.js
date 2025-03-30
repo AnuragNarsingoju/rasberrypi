@@ -81,6 +81,32 @@ async function generateInvoicePDF(invoiceData) {
     return tempPDFPath;
 }
 
+async function generateGoldInvoicePDF(invoiceData) {
+    const tempDir = path.join(__dirname, 'temp');
+    await fs.mkdir(tempDir, { recursive: true });
+    let baseImagePath;
+    if (invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'gst-gold-stone.png');
+    } 
+    else if (invoiceData.cgst > 0) {
+        baseImagePath = path.join(__dirname, 'templates', 'gst-gold.png');
+    } 
+    else if ((invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'non-gst-gold-with-stone.png');
+    } 
+    else if ((invoiceData.cname === "" && invoiceData.caddress === "" && invoiceData.cmobile === "") && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'Nc-non-gst-gold-with-stone.png');
+    } 
+    else if (invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) {
+        baseImagePath = path.join(__dirname, 'templates', 'Non-gst-gold.png');
+    } 
+    else {
+        baseImagePath = path.join(__dirname, 'templates', 'NC-Non-gst-gold.png');
+    }
+    const tempPDFPath = path.join(tempDir, `invoice.pdf`);
+    await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
+    return tempPDFPath;
+}
 
 async function createInvoiceImage(baseImagePath, invoiceData) {
     try {
