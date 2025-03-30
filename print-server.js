@@ -349,6 +349,384 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
     }
 }
 
+
+async function createGoldInvoiceImage(baseImagePath, invoiceData) {
+    try {
+        const metadata = await sharp(baseImagePath).metadata();
+        const originalWidth = metadata.width;
+        const originalHeight = metadata.height;
+        
+        const scaleX = originalWidth / 595;  
+        const scaleY = originalHeight / 420; 
+
+        const wrapText = (text, maxWidth, fontSize) => {
+            const words = text.toString().split(' ');
+            const lines = [];
+            let currentLine = words[0];
+
+            for(let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = (currentLine.length + word.length + 1) * (fontSize * 0.6);
+                if(width < maxWidth) {
+                    currentLine += " " + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        };
+
+        // Customer Details Section - moved to left side
+        const customerSection = {
+            x: 20 * scaleX,
+            y: 70 * scaleY,
+            width: 250 * scaleX,
+            height: 80 * scaleY
+        };
+
+        // Date and Invoice Section - moved to right side
+        const dateSection = {
+            x: originalWidth - (180 * scaleX),
+            y: 70 * scaleY,
+            width: 160 * scaleX,
+            height: 80 * scaleY
+        };
+
+        
+        // Create text overlays for items
+        let itemsText = '';
+        let topPosition = 155 * scaleY;  // Adjusted starting position
+
+        const hasStoneWeight = invoiceData.items.some(item => item.stoneweight > 0);
+
+        for (let i = 0; i < invoiceData.items.length; i++) {
+            const item = invoiceData.items[i];
+            if (item.grosswt > 0) {
+                const itemRow = {
+                    y: topPosition,
+                    height: 30 * scaleY,
+                    item: {
+                        x: 40 * scaleX,
+                        width: 100 * scaleX
+                    },
+                    qty: {
+                        x: 150 * scaleX,
+                        width: 40 * scaleX
+                    },
+                    hsn: {
+                        x: 200 * scaleX,
+                        width: 60 * scaleX
+                    },
+                    grossWt: {
+                        x: (invoiceData.cgst>0 && hasStoneWeight) ? 231 * scaleX : (invoiceData.cgst>0 && !hasStoneWeight) ? 231 * scaleX  : hasStoneWeight ? 196 * scaleX : 196 * scaleX ,
+                        width: (invoiceData.cgst > 0 && hasStoneWeight) ? 55 * scaleX : (invoiceData.cgst > 0 && !hasStoneWeight) ? 59 * scaleX  : hasStoneWeight ? 56 * scaleX : 76 * scaleX
+                    },
+
+                    stoneWt: {
+                        x: (invoiceData.cgst>0 && hasStoneWeight) ? 286 * scaleX : hasStoneWeight ? 252 * scaleX : 0,
+                        width:(invoiceData.cgst>0 && hasStoneWeight) ? 45 * scaleX : hasStoneWeight ? 55 * scaleX : 0
+                    },
+
+                    netWt: {
+                        x: (invoiceData.cgst>0 && hasStoneWeight) ? 332 * scaleX : (invoiceData.cgst>0 && !hasStoneWeight) ? 290 * scaleX  : hasStoneWeight ? 307 * scaleX : 272 * scaleX ,
+                        width: (invoiceData.cgst > 0 && hasStoneWeight) ? 56 * scaleX : (invoiceData.cgst > 0 && !hasStoneWeight) ? 60 * scaleX  : hasStoneWeight ? 55 * scaleX : 74 * scaleX
+                    },
+
+                    rate: {
+                        x: (invoiceData.cgst>0 && hasStoneWeight) ? 388 * scaleX : (invoiceData.cgst>0 && !hasStoneWeight) ? 350 * scaleX  : hasStoneWeight ? 363 * scaleX : 345 * scaleX  ,
+                        width: (invoiceData.cgst > 0 && hasStoneWeight) ? 45 * scaleX : (invoiceData.cgst > 0 && !hasStoneWeight) ? 59 * scaleX  : hasStoneWeight ? 46 * scaleX : 65 * scaleX
+                    },
+
+                    wastage: {
+                        x:  (invoiceData.cgst>0 && hasStoneWeight) ? 433 * scaleX: 409 * scaleX,
+                        width: (invoiceData.cgst>0 && hasStoneWeight) ? 43 * scaleX :  57 * scaleX
+                    },
+
+                    mc: {
+                        x: hasStoneWeight ? 476 * scaleX: 467 * scaleX,
+                        width:hasStoneWeight ? 50 * scaleX :  55 * scaleX
+                    },
+                    itemprice: {
+                        x: hasStoneWeight ? 525 * scaleX : 523 * scaleX, 
+                        width: hasStoneWeight ? 72 * scaleX : 71 * scaleX
+                    }
+                };
+
+                // Wrap item name if needed
+                const nameLines = wrapText(item.name, itemRow.item.width, 8 * scaleY);
+                const lineHeight = 12 * scaleY;
+                const totalHeight = nameLines.length * lineHeight;
+                const startY = itemRow.y + (itemRow.height/2) - (totalHeight/2);
+                
+                itemsText += `
+                    <!-- Full Row Background -->
+                    <rect x="25" y="${itemRow.y}" width="${originalWidth-55}" height="${itemRow.height-70}"  
+                    fill="rgba(0, 0, 0, 0)"/>
+
+
+                    <rect x="${itemRow.item.x - 230}" y="${itemRow.y}" 
+                        width="${itemRow.qty.width - 55}" height="${itemRow.height - 60}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.item.x - 230 + ((itemRow.qty.width - 55) / 2)}" 
+                        y="${itemRow.y + ((itemRow.height - 60) / 2)}"
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="middle">
+                        ${i + 1}
+                    </text>
+
+                    <!-- Item Name Column -->
+                    <rect x="${itemRow.item.x - 50}" y="${itemRow.y}" 
+                        width="${itemRow.item.width + 170}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.item.x - 50 + ((itemRow.item.width + 170) / 2)}" 
+                        y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="middle">
+                        ${item.name}
+                        ${item.code ? `
+                            <tspan x="${itemRow.item.x - 50 + ((itemRow.item.width + 170) / 2)}" 
+                                dy="42" 
+                                font-size="32" font-weight="500"
+                                font-family="Roboto">
+                                (${item.code})
+                            </tspan>
+                        ` : ''}
+                    </text>
+
+                    <!-- Quantity Column -->
+                    <rect x="${itemRow.qty.x + 60}" y="${itemRow.y}" 
+                        width="${itemRow.qty.width-30 }" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.qty.x + 60 + ((itemRow.qty.width-30 ) / 2)}" 
+                        y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="middle">
+                        ${item.qty}
+                    </text>
+
+                    <!-- HSN Column -->
+                   <!-- HSN Column -->
+                    <rect x="${itemRow.hsn.x-20}" y="${itemRow.y}" 
+                        width="${itemRow.hsn.width - 150}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    
+                    ${invoiceData.cgst ? `
+                        <text x="${itemRow.hsn.x-20 + ((itemRow.hsn.width - 150) / 2)}" 
+                                y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                                font-size="42" font-weight="500"
+                                font-family="Roboto"
+                                text-anchor="middle" alignment-baseline="middle">
+                            ${item.hsn || '-'}
+                        </text>` : ''}
+                    <!-- Gross Weight Column -->
+                    <rect x="${itemRow.grossWt.x}" y="${itemRow.y}" 
+                        width="${itemRow.grossWt.width}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.grossWt.x + itemRow.grossWt.width / 2}" 
+                        y="${itemRow.y + (itemRow.height - 70) / 2}" 
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" 
+                        dominant-baseline="middle">
+                        ${item.grosswt} grams
+                    </text>
+
+                    <!-- Net Weight Column -->
+                    
+                    <!-- Stone Weight Column -->
+                    <rect x="${itemRow.stoneWt.x}" y="${itemRow.y}" 
+                        width="${itemRow.stoneWt.width}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+                        
+                    ${hasStoneWeight ? `<text x="${itemRow.stoneWt.x + itemRow.stoneWt.width / 2}" 
+                        y="${itemRow.y + (itemRow.height - 70) / 2}" 
+                       font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="central">
+                        ${item.stoneweight > 0 ? `${item.stoneweight} grams` : '----'}
+                    </text>` : ''}
+                    
+                    <rect x="${itemRow.netWt.x}" y="${itemRow.y}" 
+                        width="${itemRow.netWt.width}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+                        
+                    <text x="${itemRow.netWt.x + itemRow.netWt.width / 2}" 
+                        y="${itemRow.y + (itemRow.height - 70) / 2}" 
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="central">
+                        ${item.netweight} grams
+                    </text>
+
+
+
+                    <!-- Rate Column -->
+                    <rect x="${itemRow.rate.x}" y="${itemRow.y}" 
+                        width="${itemRow.rate.width}" height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+                        
+                    <text x="${itemRow.rate.x + itemRow.rate.width / 2}" 
+                        y="${itemRow.y + (itemRow.height - 70) / 2}" 
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="central">
+                        RS. ${item.rate}
+                    </text>
+
+
+                     <!-- Wastage Column -->
+                        <rect x="${itemRow.wastage.x}" 
+                            y="${itemRow.y}" 
+                            width="${itemRow.wastage.width}" 
+                            height="${itemRow.height - 70}" 
+                            fill="rgba(0, 0, 0, 0)" />
+
+                        <text x="${itemRow.wastage.x + (itemRow.wastage.width / 2)}" 
+                            y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                            font-size="42" font-weight="500"
+                            font-family="Roboto"
+                            text-anchor="middle" 
+                            dominant-baseline="middle">  <!-- Corrected vertical alignment -->
+                             ${invoiceData.cgst > 0 ? `Rs. ${item.VA}` : item.wastage}
+                        </text>
+
+
+                    <!-- Making Charges Column -->
+                    <rect x="${itemRow.mc.x}" 
+                        y="${itemRow.y}" 
+                        width="${itemRow.mc.width}" 
+                        height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.mc.x + (itemRow.mc.width / 2)}" 
+                        y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" 
+                        alignment-baseline="central">
+                        RS. ${item.mc}
+                    </text>
+
+                    <rect x="${itemRow.itemprice.x}" 
+                        y="${itemRow.y}" 
+                        width="${itemRow.itemprice.width}" 
+                        height="${itemRow.height - 70}" 
+                        fill="rgba(0, 0, 0, 0)" />
+
+                    <text x="${itemRow.itemprice.x + (itemRow.itemprice.width / 2)}" 
+                        y="${itemRow.y + ((itemRow.height - 70) / 2)}"
+                        font-size="42" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="central">
+                        RS. ${item.itemprice}
+                    </text>
+                `;
+                
+                topPosition += 150;
+            }
+        }
+
+        const [datePart, time] = invoiceData.date.split(" "); 
+        const [year, month, day] = datePart.split("/");
+        const formattedYear = year.slice(-2); 
+        const formattedDate = `${day}/${month}/${formattedYear}`;
+
+        let [hours, minutes] = time.split(":");
+        hours = parseInt(hours);
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12 || 12; 
+
+        const formattedTime = `${hours}:${minutes} ${ampm}`;
+        const finalDateTime = `${formattedDate} ${formattedTime}`;
+
+        const svgOverlay = `
+            <svg width="${originalWidth}" height="${originalHeight}">
+                <style>
+                    text { 
+                        font-family: Arial, sans-serif;
+                        fill: black;
+                        letter-spacing: 0.2px;
+                    }
+                </style>
+
+
+                <!-- Customer Details -->
+         
+                <!-- Customer Section Text -->
+                <text x="${customerSection.x + 380}" y="${customerSection.y+105}"
+                    font-size="46" font-weight="500"
+                    font-family="Roboto"
+                    text-anchor="start" alignment-baseline="hanging">
+                    ${invoiceData.cname}
+                    <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
+                        ${invoiceData.cmobile}
+                    </tspan>
+                    ${invoiceData.caddress ? `
+                        <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
+                            ${invoiceData.caddress}
+                        </tspan>
+                    ` : ''}
+                </text>
+
+                <!-- Date and Invoice -->
+                <!-- Date Section Rectangle -->
+                <!-- Date Section Rectangle -->
+                    <!-- Date Section Rectangle -->
+                   
+
+                    <!-- Left-Aligned Date Section Text -->
+                    <text x="${dateSection.x + 660}" 
+                        y="${dateSection.y + 103}" 
+                        font-size="46" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="start" alignment-baseline="hanging">
+                        ${finalDateTime}
+                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
+                            ${invoiceData.invoice}
+                        </tspan>
+                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
+                        ${Object.keys(invoiceData.paymethod).join(" / ")}
+                    </tspan>
+                    </text>
+
+                <!-- Items Section -->
+                ${itemsText}
+                
+                <!-- The rest of your existing SVG content -->
+            </svg>
+        `;
+
+        const processedImage = await sharp(baseImagePath)
+            .composite([{
+                input: Buffer.from(svgOverlay),
+                top: 0,
+                left: 0
+            }])
+            .withMetadata()
+            .png({ 
+                quality: 100,
+                compression: 0,
+                force: true
+            })
+            .toBuffer();
+
+        return processedImage;
+    } catch (error) {
+        console.error('Error creating invoice image:', error);
+        throw error;
+    }
+}
+
 app.get('/printers', async (req, res) => {
         try {
             const printers = await listPrinters();
