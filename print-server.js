@@ -7,7 +7,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
 const app = express();
-const port = 3003;
+const port = 5010;
 const recentPrintRequests = new Map();
 const corsOptions = {
     origin: ['https://www.nbjshop.in'],
