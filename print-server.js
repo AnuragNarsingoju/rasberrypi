@@ -568,6 +568,16 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                         ${item.netweight} grams
                     </text>
 
+                    ${(invoiceData.cgst>0 && item.VA>0)?
+                        `<text x="${itemRow.netWt.x + itemRow.netWt.width / 2}" 
+                        y="${itemRow.y+40 + (itemRow.height - 70) / 2}" 
+                        font-size="30" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="middle" alignment-baseline="central">
+                        ( V.A ${item.VA}% )
+                        </text>`:''
+                    }
+
 
 
                     <!-- Rate Column -->
@@ -597,7 +607,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                             font-family="Roboto"
                             text-anchor="middle" 
                             dominant-baseline="middle">  <!-- Corrected vertical alignment -->
-                             ${invoiceData.cgst > 0 ? `Rs. ${item.VA}` : item.wastage}
+                             ${invoiceData.cgst > 0 ? `Rs. ${item.wastage*item.rate}` : item.wastage}
                         </text>
 
 
@@ -635,6 +645,268 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                 topPosition += 120;
             }
         }
+
+        const [datePart, time] = invoiceData.date.split(" "); 
+        const [year, month, day] = datePart.split("/");
+        const formattedYear = year.slice(-2); 
+        const formattedDate = `${day}/${month}/${formattedYear}`;
+        
+        let formattedText = Object.entries(invoiceData.paymethod)
+            .map(([key, value]) => `${key}: Rs.${value}`)
+            .map(text => `<tspan x="${invoiceData.cgst>0 ? dateSection.x - 1250 : dateSection.x - 1930}" dy="1.2em">${text}</tspan>`)
+            .join("");
+
+
+        let [hours, minutes] = time.split(":");
+        hours = parseInt(hours);
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12 || 12; 
+
+        const formattedTime = `${hours}:${minutes} ${ampm}`;
+        const finalDateTime = `${formattedDate} ${formattedTime}`;
+
+        const svgOverlay = `
+            <svg width="${originalWidth}" height="${originalHeight}">
+                <style>
+                    text { 
+                        font-family: Arial, sans-serif;
+                        fill: black;
+                        letter-spacing: 0.2px;
+                    }
+                </style>
+
+
+                <!-- Customer Details -->
+         
+                <!-- Customer Section Text -->
+                <text x="${customerSection.x + 380}" y="${customerSection.y+105}"
+                    font-size="46" font-weight="500"
+                    font-family="Roboto"
+                    text-anchor="start" alignment-baseline="hanging">
+                    ${invoiceData.cname}
+                    <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
+                        ${invoiceData.cmobile}
+                    </tspan>
+                    ${invoiceData.caddress ? `
+                        <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
+                            ${invoiceData.caddress}
+                        </tspan>
+                    ` : ''}
+                </text>
+
+                <!-- Date and Invoice -->
+                <!-- Date Section Rectangle -->
+                <!-- Date Section Rectangle -->
+                    <!-- Date Section Rectangle -->
+                   
+
+                    <!-- Left-Aligned Date Section Text -->
+                    <text x="${dateSection.x + 660}" 
+                        y="${dateSection.y + 103}" 
+                        font-size="46" font-weight="500"
+                        font-family="Roboto"
+                        text-anchor="start" alignment-baseline="hanging">
+                        ${finalDateTime}
+                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
+                            ${invoiceData.invoice}
+                        </tspan>
+                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
+                            ${Object.keys(invoiceData.paymethod).join(" / ")}
+                        </tspan>
+                    </text>
+
+                <!-- Items Section -->
+                ${itemsText}
+
+
+
+                <!-- Total Line Background -->
+
+                 <text x="${dateSection.x - 1415}" 
+                    y="${dateSection.y + 1340}" 
+                    font-size="52" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        ${invoiceData.items.reduce((sum, item) => sum + item.qty, 0)}
+                    </tspan>
+                </text>
+
+                <text x="${dateSection.x + 730}" 
+                    y="${dateSection.y + 1340}" 
+                    font-size="52" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        Rs.${invoiceData.items.reduce((sum, item) => sum + item.itemprice, 0)}
+                    </tspan>
+                </text>
+
+
+
+                <!-- First Line Background -->
+
+
+
+                <text x="${dateSection.x + 650}" 
+                    y="${dateSection.y + 1468}" 
+                    font-size="46" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        Rs.${invoiceData.final}
+                    </tspan>
+                </text>
+
+                <text x="${dateSection.x + 361}" 
+                    y="${dateSection.y + 1530}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                     Round off : 
+                    </tspan>
+                </text>
+
+                 <text x="${dateSection.x + 650}" 
+                    y="${dateSection.y + 1530}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                     Rs.${invoiceData.roundoff}
+                    </tspan>
+                </text>
+
+
+                <text x="${dateSection.x + 382}" 
+                    y="${dateSection.y + 1595}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                     Discount : 
+                    </tspan>
+                </text>
+
+                <rect x="${dateSection.x + 640}" 
+                    y="${dateSection.y + 1580}" 
+                    width="250" 
+                    height="50" 
+                    fill="rgba(0, 0, 0, 0)" />
+                <text x="${dateSection.x + 650}" 
+                    y="${dateSection.y + 1595}" 
+                    font-size="46" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                        Rs.${invoiceData.discount}
+                    </tspan>
+                </text>
+
+
+                <text x="${dateSection.x - 315}" 
+                    y="${dateSection.y + 1463}" 
+                    font-size="46" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        Rs.${invoiceData.cgst}
+                    </tspan>
+                </text>
+                <text x="${dateSection.x - 315}" 
+                    y="${dateSection.y + 1526}" 
+                    font-size="46" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                     Rs.${invoiceData.sgst}
+                    </tspan>
+                </text>
+                <text x="${dateSection.x - 315}" 
+                    y="${dateSection.y + 1591}" 
+                    font-size="46" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        Rs.${invoiceData.cgst + invoiceData.sgst}
+                    </tspan>
+                </text>
+
+
+                <text x="${dateSection.x + 650}" 
+                    y="${dateSection.y + 1753}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                        Rs.${invoiceData.sale_price}
+                    </tspan>
+                </text>
+            
+
+                <text x="${dateSection.x - 1630}" 
+                    y="${invoiceData.cgst>0 ? dateSection.y + 1695  :dateSection.y + 1702}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    ${formattedText}
+                </text>
+
+                
+                <!-- The rest of your existing SVG content -->
+            </svg>
+        `;
+
+        const processedImage = await sharp(baseImagePath)
+            .composite([{
+                input: Buffer.from(svgOverlay),
+                top: 0,
+                left: 0
+            }])
+            .withMetadata()
+            .png({ 
+                quality: 100,
+                compression: 0,
+                force: true
+            })
+            .toBuffer();
+
+        return processedImage;
+    } catch (error) {
+        console.error('Error creating invoice image:', error);
+        throw error;
+    }
+}
 
         const [datePart, time] = invoiceData.date.split(" "); 
         const [year, month, day] = datePart.split("/");
