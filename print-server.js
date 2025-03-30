@@ -7,7 +7,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
 const app = express();
-const port = 3003;
+const port = 5010;
 const recentPrintRequests = new Map();
 const corsOptions = {
     origin: ['https://www.nbjshop.in'],
@@ -18,8 +18,7 @@ const corsOptions = {
 
 const { PDFDocument } = require('pdf-lib');
 
-app.use(cors(corsOptions));
-
+// app.use(cors(corsOptions));
 const validateOrigin = (req, res, next) => {
     const allowedOrigins = ['https://www.nbjshop.in'];
     if (!allowedOrigins.includes(req.headers.origin)) {
@@ -27,7 +26,7 @@ const validateOrigin = (req, res, next) => {
     }
     next();
 };
-app.use(validateOrigin);
+// app.use(validateOrigin);
 
 
 app.use(express.json());
@@ -51,11 +50,16 @@ async function listPrinters() {
 
 
 async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
-
-    const printImage = await createInvoiceImage(baseImagePath, invoiceData);
+    let printImage;
+    if(invoiceData.metal === 'gold'){
+        printImage = await createGoldInvoiceImage(baseImagePath, invoiceData);
+    }
+    else{
+        printImage = await createInvoiceImage(baseImagePath, invoiceData);
+    }
 
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([148 * 2.83465, 210 * 2.83465]); // A5 size in points
+    const page = pdfDoc.addPage([210 * 2.83465, 148 * 2.83465]); // A5 vertical size in points
 
     const image = await pdfDoc.embedPng(printImage);
     page.drawImage(image, {
@@ -68,6 +72,8 @@ async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
     const pdfBytes = await pdfDoc.save();
     await fs.writeFile(outputPDFPath, pdfBytes);
 }
+
+
 
 async function generateInvoicePDF(invoiceData) {
     const tempDir = path.join(__dirname, 'temp');
@@ -107,6 +113,11 @@ async function generateGoldInvoicePDF(invoiceData) {
     await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
     return tempPDFPath;
 }
+
+
+
+
+
 
 async function createInvoiceImage(baseImagePath, invoiceData) {
     try {
@@ -177,7 +188,7 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 };
                 
                 itemsText += `
-                    <!-- Item Row Container -->
+                    <!-- Full Row Background -->
                     <rect x="25" y="${itemRow.y}" width="${originalWidth-55}" height="${itemRow.height}"  
                     fill="rgba(0, 0, 0, 0)"/>
 
@@ -967,118 +978,6 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
     }
 }
 
-        const processedImage = await sharp(baseImagePath)
-            .composite([{
-                input: Buffer.from(svgOverlay),
-                top: 0,
-                left: 0
-            }])
-            .withMetadata()
-            .png({ 
-                quality: 100,
-                compression: 0,
-                force: true
-            })
-            .toBuffer();
-
-        return processedImage;
-    } catch (error) {
-        console.error('Error creating invoice image:', error);
-        throw error;
-    }
-}
-
-        const [datePart, time] = invoiceData.date.split(" "); 
-        const [year, month, day] = datePart.split("/");
-        const formattedYear = year.slice(-2); 
-        const formattedDate = `${day}/${month}/${formattedYear}`;
-
-        let [hours, minutes] = time.split(":");
-        hours = parseInt(hours);
-        const ampm = hours >= 12 ? "PM" : "AM";
-        hours = hours % 12 || 12; 
-
-        const formattedTime = `${hours}:${minutes} ${ampm}`;
-        const finalDateTime = `${formattedDate} ${formattedTime}`;
-
-        const svgOverlay = `
-            <svg width="${originalWidth}" height="${originalHeight}">
-                <style>
-                    text { 
-                        font-family: Arial, sans-serif;
-                        fill: black;
-                        letter-spacing: 0.2px;
-                    }
-                </style>
-
-
-                <!-- Customer Details -->
-         
-                <!-- Customer Section Text -->
-                <text x="${customerSection.x + 380}" y="${customerSection.y+105}"
-                    font-size="46" font-weight="500"
-                    font-family="Roboto"
-                    text-anchor="start" alignment-baseline="hanging">
-                    ${invoiceData.cname}
-                    <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
-                        ${invoiceData.cmobile}
-                    </tspan>
-                    ${invoiceData.caddress ? `
-                        <tspan x="${customerSection.x + 380}" dy="${13 * scaleY}">
-                            ${invoiceData.caddress}
-                        </tspan>
-                    ` : ''}
-                </text>
-
-                <!-- Date and Invoice -->
-                <!-- Date Section Rectangle -->
-                <!-- Date Section Rectangle -->
-                    <!-- Date Section Rectangle -->
-                   
-
-                    <!-- Left-Aligned Date Section Text -->
-                    <text x="${dateSection.x + 660}" 
-                        y="${dateSection.y + 103}" 
-                        font-size="46" font-weight="500"
-                        font-family="Roboto"
-                        text-anchor="start" alignment-baseline="hanging">
-                        ${finalDateTime}
-                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
-                            ${invoiceData.invoice}
-                        </tspan>
-                        <tspan x="${dateSection.x + 660}" dy="${13 * scaleY}">
-                        ${Object.keys(invoiceData.paymethod).join(" / ")}
-                    </tspan>
-                    </text>
-
-                <!-- Items Section -->
-                ${itemsText}
-                
-                <!-- The rest of your existing SVG content -->
-            </svg>
-        `;
-
-        const processedImage = await sharp(baseImagePath)
-            .composite([{
-                input: Buffer.from(svgOverlay),
-                top: 0,
-                left: 0
-            }])
-            .withMetadata()
-            .png({ 
-                quality: 100,
-                compression: 0,
-                force: true
-            })
-            .toBuffer();
-
-        return processedImage;
-    } catch (error) {
-        console.error('Error creating invoice image:', error);
-        throw error;
-    }
-}
-
 app.get('/printers', async (req, res) => {
         try {
             const printers = await listPrinters();
@@ -1094,76 +993,67 @@ app.get('/printers', async (req, res) => {
 app.post('/print', async (req, res) => {
     try {
         const invoiceData = req.body;
-        
-        if (!invoiceData.item || !invoiceData.time) {
+        const metal = invoiceData.metal;
+        if (!invoiceData.items || !invoiceData.date) {
             return res.status(400).json({ error: 'Missing required invoice data' });
         }
 
         const requestKey = JSON.stringify({
             time: invoiceData.time,
-            items: invoiceData.item,
-            total: invoiceData.total
+            items: invoiceData.items,
+            total: invoiceData.final
         });
+        
 
         // Check if this request has been processed recently
-        if (recentPrintRequests.has(requestKey)) {
-            const lastRequestTime = recentPrintRequests.get(requestKey);
-            const timeSinceLastRequest = Date.now() - lastRequestTime;
+        // if (recentPrintRequests.has(requestKey)) {
+        //     const lastRequestTime = recentPrintRequests.get(requestKey);
+        //     const timeSinceLastRequest = Date.now() - lastRequestTime;
             
-            if (timeSinceLastRequest < 30000) { // 30 seconds in milliseconds
-                return res.status(429).json({ 
-                    error: 'Please wait 30sec before submitting the same print request again',
-                    remainingTime: Math.ceil((30000 - timeSinceLastRequest) / 1000) // Remaining time in seconds
-                });
-            }
-        }
+        //     if (timeSinceLastRequest < 30000) { // 30 seconds in milliseconds
+        //         return res.status(429).json({ 
+        //             error: 'Please wait 30sec before submitting the same print request again',
+        //             remainingTime: Math.ceil((30000 - timeSinceLastRequest) / 1000) // Remaining time in seconds
+        //         });
+        //     }
+        // }
 
         // Record this request time
         recentPrintRequests.set(requestKey, Date.now());
         
         // Clean up old entries from the Map periodically
-        if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
-            const now = Date.now();
-            for (const [key, timestamp] of recentPrintRequests.entries()) {
-                if (now - timestamp > 30000) {
-                    recentPrintRequests.delete(key);
-                }
-            }
-        }
+        // if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
+        //     const now = Date.now();
+        //     for (const [key, timestamp] of recentPrintRequests.entries()) {
+        //         if (now - timestamp > 30000) {
+        //             recentPrintRequests.delete(key);
+        //         }
+        //     }
+        // }
 
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        const tempPDFPath = await generateInvoicePDF(invoiceData);
+        const tempPDFPath = metal === 'gold' ? await generateGoldInvoicePDF(invoiceData) : await generateInvoicePDF(invoiceData);
+        const tempImagePath = path.join(tempDir, `invoice-${Date.now()}.png`);
 
-        const printerName = '"Samsung M2020 Series"'; 
-        
+        const printerName = metal === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
+        // await fs.writeFile(tempImagePath, tempPDFPath);
 
         if (!printerName) {
             throw new Error('No printer found');
         }
 
         // Windows-specific print command
-        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
-    + `-NoNewWindow -Wait`;
+        let printCommand;
 
-    
-
-
-
-    
-
-    console.log("hello");
-
-
-
-    
-
-    
-
-        // const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
-        // + `-ArgumentList '-silent -print-to "EPSON L3250 Series" -print-settings "paper=A5,fit-to-page,res=600x600,quality=high" "${tempImagePath}"' `
-        // + `-NoNewWindow -Wait`;
+        if(metal === 'silver'){
+            printCommand= `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
+            + `-NoNewWindow -Wait`;    
+        }
+        else{
+            printCommand= `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `+`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
+        }
 
 
         exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
@@ -1180,13 +1070,11 @@ app.post('/print', async (req, res) => {
 
 
         //to save the printed pdf
+        const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
+        await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
+        await fs.copyFile(tempImagePath, debugPath);
 
-        // // Save a copy for quality verification (optional)
-        // const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
-        // await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
-        // await fs.copyFile(tempImagePath, debugPath);
-
-        // await fs.unlink(tempImagePath);
+        await fs.unlink(tempImagePath);
 
         res.json({ 
             success: true, 
