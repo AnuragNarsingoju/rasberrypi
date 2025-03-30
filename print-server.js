@@ -554,6 +554,14 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                         font-family="Roboto"
                         text-anchor="middle" alignment-baseline="central">
                         ${item.stoneweight > 0 ? `${item.stoneweight} grams` : '----'}
+                        ${item.stonerate>0 ? `
+                            <tspan x="${itemRow.stoneWt.x + itemRow.stoneWt.width / 2}" 
+                                dy="42" 
+                                font-size="32" font-weight="500"
+                                font-family="Roboto">
+                                (Rs.${item.stonerate})
+                            </tspan>
+                        ` : ''}
                     </text>` : ''}
                     
                     <rect x="${itemRow.netWt.x}" y="${itemRow.y}" 
@@ -735,6 +743,34 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     </tspan>
                 </text>
 
+
+
+                <text x="${(invoiceData.cgst > 0 && hasStoneWeight) ? dateSection.x - 1070 : (invoiceData.cgst > 0 && !hasStoneWeight) ?  dateSection.x - 1060 : hasStoneWeight ?  dateSection.x - 1275 :  dateSection.x - 1220 }" 
+                    y="${dateSection.y + 1340}" 
+                    font-size="52" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        ${invoiceData.items.reduce((sum, item) => sum + item.grosswt, 0)} grams
+                    </tspan>
+                </text>
+
+                <text x="${(invoiceData.cgst > 0 && hasStoneWeight) ? dateSection.x - 460 : (invoiceData.cgst > 0 && !hasStoneWeight) ?  dateSection.x - 690 : hasStoneWeight ?  dateSection.x - 600 :  dateSection.x - 750 }" 
+                    y="${dateSection.y + 1340}" 
+                    font-size="52" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    
+                    <tspan dy="0">
+                        ${invoiceData.items.reduce((sum, item) => sum + item.netweight, 0)} grams
+                    </tspan>
+                </text>
+
                 <text x="${dateSection.x + 730}" 
                     y="${dateSection.y + 1340}" 
                     font-size="52" 
@@ -767,7 +803,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     </tspan>
                 </text>
 
-                <text x="${dateSection.x + 361}" 
+                ${invoiceData.roundoff>0 ? `<text x="${dateSection.x + 361}" 
                     y="${dateSection.y + 1530}" 
                     font-size="50" 
                     font-weight="500" 
@@ -789,11 +825,11 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                      Rs.${invoiceData.roundoff}
                     </tspan>
-                </text>
+                </text>`:''}
 
 
-                <text x="${dateSection.x + 382}" 
-                    y="${dateSection.y + 1595}" 
+                ${invoiceData.discount>0 ? `<text x="${ dateSection.x + 382 }" 
+                    y="${invoiceData.roundoff>0 ? dateSection.y + 1595 : dateSection.y + 1530}" 
                     font-size="50" 
                     font-weight="500" 
                     font-family="Roboto" 
@@ -804,13 +840,8 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     </tspan>
                 </text>
 
-                <rect x="${dateSection.x + 640}" 
-                    y="${dateSection.y + 1580}" 
-                    width="250" 
-                    height="50" 
-                    fill="rgba(0, 0, 0, 0)" />
                 <text x="${dateSection.x + 650}" 
-                    y="${dateSection.y + 1595}" 
+                    y="${invoiceData.roundoff>0 ?dateSection.y + 1595:dateSection.y + 1530}" 
                     font-size="46" 
                     font-weight="500" 
                     font-family="Roboto" 
@@ -819,7 +850,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                         Rs.${invoiceData.discount}
                     </tspan>
-                </text>
+                </text>` : ''}
 
 
                 <text x="${dateSection.x - 315}" 
@@ -882,10 +913,59 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     ${formattedText}
                 </text>
 
+
+
+
+
                 
                 <!-- The rest of your existing SVG content -->
+
+
+                ${invoiceData.og_nw > 0 ? `<text x="${dateSection.x + 625}" 
+                    y="${dateSection.y + 1690}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="end" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                        Purchased Gold ${invoiceData.og_nw} grams : 
+                    </tspan>
+                </text>
+                <text x="${dateSection.x + 650}" 
+                    y="${dateSection.y + 1690}" 
+                    font-size="50" 
+                    font-weight="500" 
+                    font-family="Roboto" 
+                    text-anchor="start" 
+                    alignment-baseline="middle">
+                    <tspan dy="0">
+                        Rs.${invoiceData.og_price}
+                    </tspan>
+                </text>`:''}
             </svg>
         `;
+
+        const processedImage = await sharp(baseImagePath)
+            .composite([{
+                input: Buffer.from(svgOverlay),
+                top: 0,
+                left: 0
+            }])
+            .withMetadata()
+            .png({ 
+                quality: 100,
+                compression: 0,
+                force: true
+            })
+            .toBuffer();
+
+        return processedImage;
+    } catch (error) {
+        console.error('Error creating invoice image:', error);
+        throw error;
+    }
+}
 
         const processedImage = await sharp(baseImagePath)
             .composite([{
