@@ -657,7 +657,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
             }
         }
 
-        const [datePart, time] = invoiceData.date.split(" "); 
+        const [datePart, time] = invoiceData.time.split(" "); 
         const [year, month, day] = datePart.split("/");
         const formattedYear = year.slice(-2); 
         const formattedDate = `${day}/${month}/${formattedYear}`;
@@ -986,13 +986,12 @@ app.post('/print', async (req, res) => {
     try {
         const invoiceData = req.body;
         
-        if (!invoiceData.item || !invoiceData.time) {
+        if ((!invoiceData.item || !invoiceData.time) && (!invoiceData.items || !invoiceData.time)) {
             return res.status(400).json({ error: 'Missing required invoice data' });
         }
 
         const requestKey = JSON.stringify({
             time: invoiceData.time,
-            items: invoiceData.item,
             total: invoiceData.total
         });
 
@@ -1010,7 +1009,7 @@ app.post('/print', async (req, res) => {
         }
 
         // Record this request time
-        recentPrintRequests.set(requestKey, Date.now());
+        recentPrintRequests.set(requestKey, .now());
         
         // Clean up old entries from the Map periodically
         if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
@@ -1025,10 +1024,12 @@ app.post('/print', async (req, res) => {
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
 
-        const tempPDFPath = metal === 'gold' ? await generateGoldInvoicePDF(invoiceData) : await generateInvoicePDF(invoiceData);
+         const tempPDFPath = invoiceData.metal? === 'gold' 
+                ? await generateGoldInvoicePDF(invoiceData) 
+                : await generateInvoicePDF(invoiceData);
         
 
-        const printerName = metal === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
+        const printerName = invoiceData.metal? === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
         
 
         if (!printerName) {
@@ -1037,7 +1038,7 @@ app.post('/print', async (req, res) => {
 
         let printCommand;
         // Windows-specific print command
-        if(metal === 'silver'){
+        if(invoiceData.metal === 'silver'){
                 printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
             + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
             + `-NoNewWindow -Wait`;
