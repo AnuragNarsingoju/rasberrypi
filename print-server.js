@@ -632,7 +632,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     </text>
                 `;
                 
-                topPosition += 150;
+                topPosition += 120;
             }
         }
 
