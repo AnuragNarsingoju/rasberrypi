@@ -52,10 +52,16 @@ async function listPrinters() {
 
 async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
 
-    const printImage = await createInvoiceImage(baseImagePath, invoiceData);
+    let printImage;
+    if(invoiceData.metal === 'gold'){
+        printImage = await createGoldInvoiceImage(baseImagePath, invoiceData);
+    }
+    else{
+        printImage = await createInvoiceImage(baseImagePath, invoiceData);
+    }
 
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([148 * 2.83465, 210 * 2.83465]); // A5 size in points
+    const page = invoiceData.metal === 'gold' ? pdfDoc.addPage([210 * 2.83465, 148 * 2.83465]) : pdfDoc.addPage([148 * 2.83465, 210 * 2.83465]); 
 
     const image = await pdfDoc.embedPng(printImage);
     page.drawImage(image, {
@@ -1018,38 +1024,28 @@ app.post('/print', async (req, res) => {
 
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        const tempPDFPath = await generateInvoicePDF(invoiceData);
 
-        const printerName = '"Samsung M2020 Series"'; 
+        const tempPDFPath = metal === 'gold' ? await generateGoldInvoicePDF(invoiceData) : await generateInvoicePDF(invoiceData);
+        
+
+        const printerName = metal === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
         
 
         if (!printerName) {
             throw new Error('No printer found');
         }
 
+        let printCommand;
         // Windows-specific print command
-        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
-    + `-NoNewWindow -Wait`;
-
-    
-
-
-
-    
-
-    console.log("hello");
-
-
-
-    
-
-    
-
-        // const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
-        // + `-ArgumentList '-silent -print-to "EPSON L3250 Series" -print-settings "paper=A5,fit-to-page,res=600x600,quality=high" "${tempImagePath}"' `
-        // + `-NoNewWindow -Wait`;
-
+        if(metal === 'silver'){
+                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
+            + `-NoNewWindow -Wait`;
+        }
+        else{
+            printCommand = `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `
+            +`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
+        }
 
         exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
             if (error) {
