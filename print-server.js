@@ -7,7 +7,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
 const app = express();
-const port = 5010;
+const port = 3003;
 const recentPrintRequests = new Map();
 const corsOptions = {
     origin: ['https://www.nbjshop.in'],
@@ -18,7 +18,8 @@ const corsOptions = {
 
 const { PDFDocument } = require('pdf-lib');
 
-// app.use(cors(corsOptions));
+app.use(cors(corsOptions));
+
 const validateOrigin = (req, res, next) => {
     const allowedOrigins = ['https://www.nbjshop.in'];
     if (!allowedOrigins.includes(req.headers.origin)) {
@@ -26,7 +27,7 @@ const validateOrigin = (req, res, next) => {
     }
     next();
 };
-// app.use(validateOrigin);
+app.use(validateOrigin);
 
 
 app.use(express.json());
@@ -50,16 +51,11 @@ async function listPrinters() {
 
 
 async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
-    let printImage;
-    if(invoiceData.metal === 'gold'){
-        printImage = await createGoldInvoiceImage(baseImagePath, invoiceData);
-    }
-    else{
-        printImage = await createInvoiceImage(baseImagePath, invoiceData);
-    }
+
+    const printImage = await createInvoiceImage(baseImagePath, invoiceData);
 
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([210 * 2.83465, 148 * 2.83465]); // A5 vertical size in points
+    const page = pdfDoc.addPage([148 * 2.83465, 210 * 2.83465]); // A5 size in points
 
     const image = await pdfDoc.embedPng(printImage);
     page.drawImage(image, {
@@ -73,8 +69,6 @@ async function saveInvoiceAsPDF(baseImagePath, invoiceData, outputPDFPath) {
     await fs.writeFile(outputPDFPath, pdfBytes);
 }
 
-
-
 async function generateInvoicePDF(invoiceData) {
     const tempDir = path.join(__dirname, 'temp');
     await fs.mkdir(tempDir, { recursive: true });
@@ -86,39 +80,6 @@ async function generateInvoicePDF(invoiceData) {
 
     return tempPDFPath;
 }
-
-async function generateGoldInvoicePDF(invoiceData) {
-    const tempDir = path.join(__dirname, 'temp');
-    await fs.mkdir(tempDir, { recursive: true });
-    let baseImagePath;
-    if (invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0)) {
-        baseImagePath = path.join(__dirname, 'templates', 'gst-gold-stone.png');
-    } 
-    else if (invoiceData.cgst > 0) {
-        baseImagePath = path.join(__dirname, 'templates', 'gst-gold.png');
-    } 
-    else if ((invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) && invoiceData.items.some(item => item.stoneweight > 0)) {
-        baseImagePath = path.join(__dirname, 'templates', 'non-gst-gold-with-stone.png');
-    } 
-    else if ((invoiceData.cname === "" && invoiceData.caddress === "" && invoiceData.cmobile === "") && invoiceData.items.some(item => item.stoneweight > 0)) {
-        baseImagePath = path.join(__dirname, 'templates', 'Nc-non-gst-gold-with-stone.png');
-    } 
-    else if (invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) {
-        baseImagePath = path.join(__dirname, 'templates', 'Non-gst-gold.png');
-    } 
-    else {
-        baseImagePath = path.join(__dirname, 'templates', 'NC-Non-gst-gold.png');
-    }
-    const tempPDFPath = path.join(tempDir, `invoice.pdf`);
-    await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
-    return tempPDFPath;
-}
-
-
-
-
-
-
 async function createInvoiceImage(baseImagePath, invoiceData) {
     try {
         const metadata = await sharp(baseImagePath).metadata();
@@ -188,7 +149,7 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 };
                 
                 itemsText += `
-                    <!-- Full Row Background -->
+                    <!-- Item Row Container -->
                     <rect x="25" y="${itemRow.y}" width="${originalWidth-55}" height="${itemRow.height}"  
                     fill="rgba(0, 0, 0, 0)"/>
 
@@ -360,7 +321,32 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
     }
 }
 
-
+async function generateGoldInvoicePDF(invoiceData) {
+    const tempDir = path.join(__dirname, 'temp');
+    await fs.mkdir(tempDir, { recursive: true });
+    let baseImagePath;
+    if (invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'gst-gold-stone.png');
+    } 
+    else if (invoiceData.cgst > 0) {
+        baseImagePath = path.join(__dirname, 'templates', 'gst-gold.png');
+    } 
+    else if ((invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'non-gst-gold-with-stone.png');
+    } 
+    else if ((invoiceData.cname === "" && invoiceData.caddress === "" && invoiceData.cmobile === "") && invoiceData.items.some(item => item.stoneweight > 0)) {
+        baseImagePath = path.join(__dirname, 'templates', 'Nc-non-gst-gold-with-stone.png');
+    } 
+    else if (invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) {
+        baseImagePath = path.join(__dirname, 'templates', 'Non-gst-gold.png');
+    } 
+    else {
+        baseImagePath = path.join(__dirname, 'templates', 'NC-Non-gst-gold.png');
+    }
+    const tempPDFPath = path.join(tempDir, `invoice.pdf`);
+    await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
+    return tempPDFPath;
+}
 async function createGoldInvoiceImage(baseImagePath, invoiceData) {
     try {
         const metadata = await sharp(baseImagePath).metadata();
@@ -993,67 +979,76 @@ app.get('/printers', async (req, res) => {
 app.post('/print', async (req, res) => {
     try {
         const invoiceData = req.body;
-        const metal = invoiceData.metal;
-        if (!invoiceData.items || !invoiceData.date) {
+        
+        if (!invoiceData.item || !invoiceData.time) {
             return res.status(400).json({ error: 'Missing required invoice data' });
         }
 
         const requestKey = JSON.stringify({
             time: invoiceData.time,
-            items: invoiceData.items,
-            total: invoiceData.final
+            items: invoiceData.item,
+            total: invoiceData.total
         });
-        
 
         // Check if this request has been processed recently
-        // if (recentPrintRequests.has(requestKey)) {
-        //     const lastRequestTime = recentPrintRequests.get(requestKey);
-        //     const timeSinceLastRequest = Date.now() - lastRequestTime;
+        if (recentPrintRequests.has(requestKey)) {
+            const lastRequestTime = recentPrintRequests.get(requestKey);
+            const timeSinceLastRequest = Date.now() - lastRequestTime;
             
-        //     if (timeSinceLastRequest < 30000) { // 30 seconds in milliseconds
-        //         return res.status(429).json({ 
-        //             error: 'Please wait 30sec before submitting the same print request again',
-        //             remainingTime: Math.ceil((30000 - timeSinceLastRequest) / 1000) // Remaining time in seconds
-        //         });
-        //     }
-        // }
+            if (timeSinceLastRequest < 30000) { // 30 seconds in milliseconds
+                return res.status(429).json({ 
+                    error: 'Please wait 30sec before submitting the same print request again',
+                    remainingTime: Math.ceil((30000 - timeSinceLastRequest) / 1000) // Remaining time in seconds
+                });
+            }
+        }
 
         // Record this request time
         recentPrintRequests.set(requestKey, Date.now());
         
         // Clean up old entries from the Map periodically
-        // if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
-        //     const now = Date.now();
-        //     for (const [key, timestamp] of recentPrintRequests.entries()) {
-        //         if (now - timestamp > 30000) {
-        //             recentPrintRequests.delete(key);
-        //         }
-        //     }
-        // }
+        if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
+            const now = Date.now();
+            for (const [key, timestamp] of recentPrintRequests.entries()) {
+                if (now - timestamp > 30000) {
+                    recentPrintRequests.delete(key);
+                }
+            }
+        }
 
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        const tempPDFPath = metal === 'gold' ? await generateGoldInvoicePDF(invoiceData) : await generateInvoicePDF(invoiceData);
-        const tempImagePath = path.join(tempDir, `invoice-${Date.now()}.png`);
+        const tempPDFPath = await generateInvoicePDF(invoiceData);
 
-        const printerName = metal === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
-        // await fs.writeFile(tempImagePath, tempPDFPath);
+        const printerName = '"Samsung M2020 Series"'; 
+        
 
         if (!printerName) {
             throw new Error('No printer found');
         }
 
         // Windows-specific print command
-        let printCommand;
+        const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+    + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
+    + `-NoNewWindow -Wait`;
 
-        if(metal === 'silver'){
-            printCommand= `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
-            + `-NoNewWindow -Wait`;    
-        }
-        else{
-            printCommand= `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `+`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
-        }
+    
+
+
+
+    
+
+    console.log("hello");
+
+
+
+    
+
+    
+
+        // const printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+        // + `-ArgumentList '-silent -print-to "EPSON L3250 Series" -print-settings "paper=A5,fit-to-page,res=600x600,quality=high" "${tempImagePath}"' `
+        // + `-NoNewWindow -Wait`;
 
 
         exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
@@ -1070,11 +1065,13 @@ app.post('/print', async (req, res) => {
 
 
         //to save the printed pdf
-        const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
-        await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
-        await fs.copyFile(tempImagePath, debugPath);
 
-        await fs.unlink(tempImagePath);
+        // // Save a copy for quality verification (optional)
+        // const debugPath = path.join(__dirname, 'debug', `invoice-${Date.now()}.png`);
+        // await fs.mkdir(path.join(__dirname, 'debug'), { recursive: true });
+        // await fs.copyFile(tempImagePath, debugPath);
+
+        // await fs.unlink(tempImagePath);
 
         res.json({ 
             success: true, 
@@ -1095,3 +1092,5 @@ app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
 });
+
+
