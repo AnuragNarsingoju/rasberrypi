@@ -1038,14 +1038,26 @@ app.post('/print', async (req, res) => {
 
         let printCommand;
         // Windows-specific print command
-        if(invoiceData.metal === 'silver'){
-                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
+        // if(invoiceData.metal === 'silver'){
+        //         printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+        //     + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
+        //     + `-NoNewWindow -Wait`;
+        // }
+        // else{
+        //     printCommand = `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `
+        //     +`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
+        // }
+
+         if(invoiceData.metal === 'silver'){
+            printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
             + `-NoNewWindow -Wait`;
         }
         else{
-            printCommand = `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `
-            +`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
+            printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+            + `-ArgumentList '-silent', '-print-to', 'Colourprint1', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,${invoiceData.color}', '${tempPDFPath}' `
+            + `-NoNewWindow -Wait`;
+            
         }
 
         exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
