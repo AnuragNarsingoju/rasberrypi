@@ -296,10 +296,10 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 <!-- Sale Price Section -->
                     <rect x="${311 * scaleX}" y="${(invoiceData.Discount > 0 ? 504 : 487) * scaleY}" 
                         width="${100 * scaleX}" height="${20 * scaleY}" 
-                        fill="rgba(0, 0, 0, 0.1)" />
+                        fill="rgba(0, 0, 0, 0)" />
                     <text x="${(311 + 100 / 2) * scaleX}" y="${(invoiceData.Discount > 0 ? 504 + 20 / 2 : 504 + 20 / 2) * scaleY}" 
                         font-size="${9 * scaleY}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
-                        ${invoiceData['sale price']}
+                        ${invoiceData.sale_price}
                     </text>
 
                 
@@ -331,7 +331,29 @@ async function generateGoldInvoicePDF(invoiceData) {
     const tempDir = path.join(__dirname, 'temp');
     await fs.mkdir(tempDir, { recursive: true });
     let baseImagePath;
-    if (invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0)) {
+
+    if(invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0) && invoiceData.sale_price===0) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-gst-gold-stone.png');
+    } 
+    else if (invoiceData.cgst > 0 && invoiceData.sale_price===0) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-gst-gold.png');
+    } 
+    else if ((invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) && invoiceData.items.some(item => item.stoneweight > 0) && invoiceData.sale_price===0 ) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-non-gst-gold-with-stone.png');
+    } 
+    else if ((invoiceData.cname === "" && invoiceData.caddress === "" && invoiceData.cmobile === "") && invoiceData.items.some(item => item.stoneweight > 0) && invoiceData.sale_price===0) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-Nc-non-gst-gold-with-stone.png');
+    } 
+    else if ((invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) && invoiceData.sale_price===0 ) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-Non-gst-gold.png');
+    } 
+    else if(invoiceData.sale_price===0) {
+        baseImagePath = path.join(__dirname, 'templates', 'Estimate-NC-Non-gst-gold.png');
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    else if (invoiceData.cgst > 0 && invoiceData.items.some(item => item.stoneweight > 0)) {
         baseImagePath = path.join(__dirname, 'templates', 'gst-gold-stone.png');
     } 
     else if (invoiceData.cgst > 0) {
@@ -346,9 +368,13 @@ async function generateGoldInvoicePDF(invoiceData) {
     else if (invoiceData.cname || invoiceData.caddress || invoiceData.cmobile) {
         baseImagePath = path.join(__dirname, 'templates', 'Non-gst-gold.png');
     } 
-    else {
+    else{
         baseImagePath = path.join(__dirname, 'templates', 'NC-Non-gst-gold.png');
     }
+
+
+
+    
     const tempPDFPath = path.join(tempDir, `invoice.pdf`);
     await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
     return tempPDFPath;
@@ -618,7 +644,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                             font-family="Roboto"
                             text-anchor="middle" 
                             dominant-baseline="middle">  <!-- Corrected vertical alignment -->
-                             ${invoiceData.cgst > 0 ? `Rs. ${item.wastage*item.rate}` : item.wastage}
+                            ${invoiceData.cgst > 0 ? `Rs. ${Math.round(item.wastage * item.rate).toFixed(0)}`: item.wastage}
                         </text>
 
 
@@ -757,7 +783,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     alignment-baseline="middle">
                     
                     <tspan dy="0">
-                        ${invoiceData.items.reduce((sum, item) => sum + item.grosswt, 0)} grams
+                        ${invoiceData.items.reduce((sum, item) => sum + item.grosswt, 0).toFixed(2)} grams
                     </tspan>
                 </text>
 
@@ -770,7 +796,8 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     alignment-baseline="middle">
                     
                     <tspan dy="0">
-                        ${invoiceData.items.reduce((sum, item) => sum + item.netweight, 0)} grams
+                         ${invoiceData.items.reduce((sum, item) => sum + item.netweight, 0).toFixed(2)} grams
+
                     </tspan>
                 </text>
 
@@ -802,7 +829,7 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     alignment-baseline="middle">
                     
                     <tspan dy="0">
-                        Rs.${invoiceData.final}
+                        Rs.${parseFloat(invoiceData.final - invoiceData.roundoff).toFixed(2)}
                     </tspan>
                 </text>
 
@@ -856,7 +883,8 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                 </text>` : ''}
 
 
-                <text x="${dateSection.x - 315}" 
+                ${(invoiceData.cgst>0 && invoiceData.sgst>0) && (
+                `<text x="${dateSection.x - 315}" 
                     y="${dateSection.y + 1463}" 
                     font-size="46" 
                     font-weight="500" 
@@ -867,8 +895,9 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                         Rs.${invoiceData.cgst}
                     </tspan>
-                </text>
-                <text x="${dateSection.x - 315}" 
+                </text>`)}
+                ${(invoiceData.cgst>0 && invoiceData.sgst>0) && (
+                `<text x="${dateSection.x - 315}" 
                     y="${dateSection.y + 1526}" 
                     font-size="46" 
                     font-weight="500" 
@@ -878,8 +907,10 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                      Rs.${invoiceData.sgst}
                     </tspan>
-                </text>
-                <text x="${dateSection.x - 315}" 
+                </text>`)}
+                
+                 ${(invoiceData.cgst>0 && invoiceData.sgst>0) && (
+                 `<text x="${dateSection.x - 315}" 
                     y="${dateSection.y + 1591}" 
                     font-size="46" 
                     font-weight="500" 
@@ -890,10 +921,11 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                         Rs.${invoiceData.cgst + invoiceData.sgst}
                     </tspan>
-                </text>
+                </text>`)}
 
 
-                <text x="${dateSection.x + 650}" 
+                ${(invoiceData.sale_price>0) && (
+                 ` <text x="${dateSection.x + 650}" 
                     y="${dateSection.y + 1753}" 
                     font-size="50" 
                     font-weight="500" 
@@ -903,7 +935,8 @@ async function createGoldInvoiceImage(baseImagePath, invoiceData) {
                     <tspan dy="0">
                         Rs.${invoiceData.sale_price}
                     </tspan>
-                </text>
+                </text>`)}
+
             
 
                 <text x="${dateSection.x - 1630}" 
@@ -985,6 +1018,8 @@ app.get('/printers', async (req, res) => {
 app.post('/print', async (req, res) => {
     try {
         const invoiceData = req.body;
+
+        console.log(invoiceData);
         
         if ((!invoiceData.item || !invoiceData.time) && (!invoiceData.items || !invoiceData.time)) {
             return res.status(400).json({ error: 'Missing required invoice data' });
@@ -1009,7 +1044,7 @@ app.post('/print', async (req, res) => {
         }
 
         // Record this request time
-        recentPrintRequests.set(requestKey, .now());
+        recentPrintRequests.set(requestKey, Date.now());
         
         // Clean up old entries from the Map periodically
         if (recentPrintRequests.size > 100) { // Arbitrary limit to prevent memory issues
@@ -1024,12 +1059,12 @@ app.post('/print', async (req, res) => {
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
 
-         const tempPDFPath = invoiceData.metal? === 'gold' 
+         const tempPDFPath = invoiceData.metal === 'gold' 
                 ? await generateGoldInvoicePDF(invoiceData) 
                 : await generateInvoicePDF(invoiceData);
         
 
-        const printerName = invoiceData.metal? === 'gold' ? '"EPSON L3250 Series"' : '"Samsung M2020 Series"'; 
+        const printerName = invoiceData.metal === 'gold' ? 'Colourprint1' : '"Samsung M2020 Series"'; 
         
 
         if (!printerName) {
@@ -1037,18 +1072,7 @@ app.post('/print', async (req, res) => {
         }
 
         let printCommand;
-        // Windows-specific print command
-        // if(invoiceData.metal === 'silver'){
-        //         printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-        //     + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0', '${tempPDFPath}' `  
-        //     + `-NoNewWindow -Wait`;
-        // }
-        // else{
-        //     printCommand = `"C:\\Program Files\\SumatraPDF\\SumatraPDF.exe" -silent -print-to ${printerName} `
-        //     +`-print-settings "paper=A5,fit,print-as-image=no, autorotate-yes, center-yes, res=600x600, quality=high" "${tempPDFPath}"`;
-        // }
-
-         if(invoiceData.metal === 'silver'){
+        if(invoiceData.metal === 'silver'){
             printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
             + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
             + `-NoNewWindow -Wait`;
@@ -1101,5 +1125,3 @@ app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
 });
-
-
