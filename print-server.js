@@ -79,7 +79,14 @@ async function generateInvoicePDF(invoiceData) {
     const tempDir = path.join(__dirname, 'temp');
     await fs.mkdir(tempDir, { recursive: true });
 
-    const baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
+
+    let baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
+    if((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) === parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0))){
+        baseImagePath =  path.join(__dirname, 'templates', 'nbj2.png');
+    }
+    else if(parseInt(invoiceData.sale_price)<0){
+         baseImagePath =  path.join(__dirname, 'templates', 'nbj3.png');
+    }
     const tempPDFPath = path.join(tempDir, `invoice.pdf`);
 
     await saveInvoiceAsPDF(baseImagePath, invoiceData, tempPDFPath);
@@ -271,7 +278,7 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 </text>
 
 
-                ${invoiceData.Discount > 0 ? `
+                ${((invoiceData.Discount > 0) && ((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) !== parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0))) ) ? `
                     <rect x="${302 * scaleX}" y="${475 * scaleY}" 
                           width="${60 * scaleX}" height="${20 * scaleY}" 
                           fill="rgba(0, 0, 0, 0)" />
@@ -283,17 +290,21 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                 ` : ''}
 
                 ${parseFloat(invoiceData.os_nw) > 0 ? `
-                    <rect x="${101 * scaleX}" y="${(invoiceData.Discount > 0 ? 486 : 478) * scaleY}" 
+                    <rect x="${101 * scaleX}" y="${( (invoiceData.Discount > 0) && !((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) !== parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0)))  ? 486 : 478) * scaleY}" 
                           width="${300 * scaleX}" height="${20 * scaleY}" 
                           fill="rgba(0, 0, 0, 0)" />
-                    <text x="${(101 + 300 / 2) * scaleX}" y="${(invoiceData.Discount > 0 ? 487 + 20 / 2 : 479 + 20 / 2) * scaleY}" 
+                    <text x="${(101 + 300 / 2) * scaleX}" y="${((invoiceData.Discount > 0) && !((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) === parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0))) ? 487 + 20 / 2 : 479 + 20 / 2) * scaleY}" 
                           font-size="${8 * scaleY}" font-weight="bold"
                           text-anchor="middle" dominant-baseline="middle">
                         Old Metal Net weight  : ${parseFloat(invoiceData.os_nw).toFixed(2)} grams | Old Metal Amount  : - ${invoiceData.os_price}
                     </text>
-                ` : ''}
+                ` : '' }
+
+              
+                
 
                 <!-- Sale Price Section -->
+                ${(parseFloat(invoiceData.sale_price) > 0 ) ? `
                     <rect x="${311 * scaleX}" y="${(invoiceData.Discount > 0 ? 504 : 487) * scaleY}" 
                         width="${100 * scaleX}" height="${20 * scaleY}" 
                         fill="rgba(0, 0, 0, 0)" />
@@ -301,6 +312,11 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                         font-size="${9 * scaleY}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
                         ${invoiceData.sale_price}
                     </text>
+                ` :  `<text x="${(311 + 100 / 2) * scaleX}" y="${(invoiceData.Discount > 0 ? 504 + 20 / 2 : 504 + 20 / 2) * scaleY}" 
+                        font-size="${9 * scaleY}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
+                        ${Math.abs(parseInt(invoiceData.sale_price))}
+                    </text>` }
+
 
                 
             </svg>
