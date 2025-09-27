@@ -1228,6 +1228,142 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
+
+const labelWidth = 400;          
+const rightHalfWidth = labelWidth / 2;
+const leftEdgeRightHalf = rightHalfWidth; 
+const fontWidth = 12;             
+const text = "Item1";
+
+const xPos = Math.floor(leftEdgeRightHalf + (rightHalfWidth - (text.length * fontWidth)) / 2);
+
+const generateLabelTSPL = ({
+      isBulk,
+      category,
+      itemName,
+      Weight,
+      Stwt,
+      barcode,
+      boxName,
+      Cover,
+      percentage
+    }) => {
+  if (isBulk === "bulk") {
+    const topY = 30;
+    const bottomY = 350;
+    const areaHeight = bottomY - topY;
+    const CHAR_HEIGHT = 20;     
+    const boxNameLength = (boxName || '').length;
+    const yPos = Math.floor(topY + (areaHeight + (boxNameLength * CHAR_HEIGHT)) / 2)
+
+    return ` SIZE 60 mm,45 mm
+            GAP 2 mm,0
+            DIRECTION 1
+            CLS
+            QRCODE 35,130,H,6,A,0,M2,S7,"${barcode}"
+            TEXT 180,${yPos},"2",270,1,1,"${boxName || ''}"
+            TEXT 205,245,"2",270,1,1,"${Cover || ''}"
+            BAR 244,55,3,280
+            TEXT 330,80,"4",0,1,1,"NBJ"
+            TEXT ${xPos},160,"2",0,1,1,"${category === "Others" ? itemName : category}"
+            TEXT ${xPos},190,"2",0,1,1,"${boxName || ''}"
+            TEXT ${xPos},220,"2",0,1,1,"${Cover || ''}"
+            TEXT ${xPos},250,"2",0,1,1,"Code : ${barcode}"
+            PRINT 1
+            `;
+      } 
+    else if(percentage){
+          let netWeight;
+          if(Stwt){
+            netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
+          };
+        const template = Stwt?`
+          ^XA
+          ^MD17
+          ^LH0,0
+          ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+          ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+          ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
+          ^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
+          ^FO335,21^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
+          ^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
+          ^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+          ^XZ
+        `:
+        `
+           ^XA
+          ^MD17
+          ^LH0,0
+          ^FO115,25^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+          ^FO115,53^ADN,18,10^FD${"Wt : "+Weight+" g"}^FS
+          ^FO115,79^ADN,18,10^FD${"Code : "+barcode}^FS 
+    
+          ^FO315,20^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
+          ^FO315,45^ADN,18,10^FD${"Code : "+barcode}^FS 
+          ^FO313,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+          ^XZ
+        `
+        ;
+        return new Blob([template], { type: 'text/plain' });
+      }
+  else if (Stwt && !percentage){
+    let netWeight;
+    if(Stwt){
+        netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
+    };
+    const template =`
+      ^XA
+      ^MD17
+      ^LH0,0
+      ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+      ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+      ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
+      ^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
+      ^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
+      ^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+      ^XZ
+    `
+    ;
+    return new Blob([template], { type: 'text/plain' });
+  }
+  else{
+    const template = `
+      ^XA
+      ^MD17
+      ^LH0,0
+      ^FO115,35^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+      ^FO115,60^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+      ^FO335,32^ADN,18,10^FD${"Code : "+barcode}^FS 
+      ^FO330,52^BY2,2,30^B3N,N,N,N^FD${barcode}^FS
+      ^XZ
+    `;
+    return new Blob([template], { type: 'text/plain' });
+  }
+};
+
+app.post('/print-label', (req, res) => {
+  try {
+    const tsplData = generateLabelTSPL(req.body);
+    const isBulk = req.body.isBulk
+    
+    const tmpFile = '/tmp/label.tspl';
+    const printer = isBulk === "bulk" ? "TSC_TE244" : "Zebraprinter";
+    fs.writeFileSync(tmpFile, tsplData);
+
+    exec(`lp -o raw -d ${printer} ${tmpFile}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('CUPS print error:', error);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+      console.log('CUPS print output:', stdout);
+      res.json({ success: true, jobID: stdout.trim() });
+    });
+  } catch (err) {
+    console.error('Print route error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
