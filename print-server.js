@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const fsfile = require('fs');
 const cors = require('cors');
 const { exec } = require('child_process');
+const usb = require('usb');
 const execPromise = util.promisify(exec);
 const app = express();
 const port = 5010;
@@ -1279,30 +1280,29 @@ const generateLabelTSPL = ({
             netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
           };
         const template = Stwt?`
-          ^XA
-          ^MD17
-          ^LH0,0
-          ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-          ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-          ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
-          ^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
-          ^FO335,21^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
-          ^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
-          ^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-          ^XZ
+^XA
+^MD17
+^LH0,0
+^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
+^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
+^FO335,21^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
+^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
+^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+^XZ
         `:
         `
-           ^XA
-          ^MD17
-          ^LH0,0
-          ^FO115,25^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-          ^FO115,53^ADN,18,10^FD${"Wt : "+Weight+" g"}^FS
-          ^FO115,79^ADN,18,10^FD${"Code : "+barcode}^FS 
-    
-          ^FO315,20^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
-          ^FO315,45^ADN,18,10^FD${"Code : "+barcode}^FS 
-          ^FO313,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-          ^XZ
+^XA
+^MD17
+^LH0,0
+^FO115,25^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+^FO115,53^ADN,18,10^FD${"Wt : "+Weight+" g"}^FS
+^FO115,79^ADN,18,10^FD${"Code : "+barcode}^FS 
+^FO315,20^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
+^FO315,45^ADN,18,10^FD${"Code : "+barcode}^FS 
+^FO313,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+^XZ
         `
         ;
         return { type: 'ZEBRA', data: template };
@@ -1313,30 +1313,30 @@ const generateLabelTSPL = ({
         netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
     };
     const template =`
-      ^XA
-      ^MD17
-      ^LH0,0
-      ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-      ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-      ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
-      ^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
-      ^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
-      ^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-      ^XZ
+^XA
+^MD17
+^LH0,0
+^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
+^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
+^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
+^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
+^XZ
     `
     ;
     return { type: 'ZEBRA', data: template };
   }
   else{
     const template = `
-      ^XA
-      ^MD17
-      ^LH0,0
-      ^FO115,35^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-      ^FO115,60^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-      ^FO335,32^ADN,18,10^FD${"Code : "+barcode}^FS 
-      ^FO330,52^BY2,2,30^B3N,N,N,N^FD${barcode}^FS
-      ^XZ
+^XA
+^MD17
+^LH0,0
+^FO115,35^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
+^FO115,60^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
+^FO335,32^ADN,18,10^FD${"Code : "+barcode}^FS 
+^FO330,52^BY2,2,30^B3N,N,N,N^FD${barcode}^FS
+^XZ
     `;
     return { type: 'ZEBRA', data: template };
   }
@@ -1359,6 +1359,10 @@ app.post('/print-label', async(req, res) => {
 
     // Write the print data to file
     fsfile.writeFileSync(tmpFile, printData, 'utf8');
+    
+    // Debug: Log the print data and file path
+    console.log(`Printing ${printerType} data to: ${tmpFile}`);
+    console.log(`Print data preview: ${printData.substring(0, 200)}...`);
 
     // Define printers based on type
     const primaryPrinter = printerType === 'TSC' ? "TSC TE244" : "ZDesigner ZD220-203dpi ZPL";
@@ -1375,9 +1379,27 @@ app.post('/print-label', async(req, res) => {
             }
             
             // Printer exists, proceed with printing
-            const cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
+            let cmd;
+            
+            if (printerType === 'TSC') {
+                // For TSC printers, use copy command to send raw TSPL data
+                cmd = `copy "${tmpFile}" "${printer}"`;
+            } else {
+                // For Zebra printers, use Out-Printer
+                cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
+            }
 
+            console.log(`Executing command: ${cmd}`);
             exec(cmd, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`Command failed: ${error.message}`);
+                }
+                if (stdout) {
+                    console.log(`Command output: ${stdout}`);
+                }
+                if (stderr) {
+                    console.error(`Command stderr: ${stderr}`);
+                }
                 callback(error, stdout, stderr, cmd);
             });
         });
@@ -1415,6 +1437,96 @@ app.post('/print-label', async(req, res) => {
     }
 });
 
+// USB Printer endpoint
+app.post('/print-label-usb', async(req, res) => {
+    try {
+        const labelData = generateLabelTSPL(req.body);
+        const printerType = labelData.type;
+        const printData = labelData.data;
+
+        // Find USB printer (ZDesigner ZD220-203dpi ZPL)
+        const devices = usb.getDeviceList();
+        const printer = devices.find(device => {
+            return device.deviceDescriptor.idVendor === 0x0a5f; // ZDesigner vendor ID
+        });
+
+        if (!printer) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'USB printer not found. Please ensure ZDesigner ZD220-203dpi ZPL is connected.' 
+            });
+        }
+
+        try {
+            printer.open();
+            const interface = printer.interfaces[0];
+            interface.claim();
+
+            const endpoint = interface.endpoints.find(ep => ep.direction === 'out');
+            if (!endpoint) {
+                throw new Error('No output endpoint found');
+            }
+
+            // Convert string to buffer
+            const buffer = Buffer.from(printData, 'utf8');
+            
+            // Send data to printer
+            endpoint.transfer(buffer, (error) => {
+                interface.release();
+                printer.close();
+                
+                if (error) {
+                    console.error('USB transfer error:', error);
+                    return res.status(500).json({ 
+                        success: false, 
+                        error: 'Failed to send data to USB printer: ' + error.message 
+                    });
+                }
+                
+                console.log('Successfully sent data to USB printer');
+                res.json({ 
+                    success: true, 
+                    message: 'Label sent to USB printer successfully',
+                    printerType: printerType
+                });
+            });
+
+        } catch (usbError) {
+            console.error('USB communication error:', usbError);
+            res.status(500).json({ 
+                success: false, 
+                error: 'USB communication failed: ' + usbError.message 
+            });
+        }
+
+    } catch (err) {
+        console.error('USB print route error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get USB devices endpoint
+app.get('/usb-devices', (req, res) => {
+    try {
+        const devices = usb.getDeviceList();
+        const deviceList = devices.map(device => ({
+            vendorId: device.deviceDescriptor.idVendor,
+            productId: device.deviceDescriptor.idProduct,
+            manufacturer: device.deviceDescriptor.iManufacturer,
+            product: device.deviceDescriptor.iProduct,
+            serialNumber: device.deviceDescriptor.iSerialNumber
+        }));
+        
+        res.json({ 
+            success: true, 
+            devices: deviceList,
+            message: 'USB devices listed successfully'
+        });
+    } catch (err) {
+        console.error('USB devices error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
