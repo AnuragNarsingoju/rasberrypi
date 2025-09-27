@@ -1283,6 +1283,7 @@ const generateLabelTSPL = ({
 ^XA
 ^MD17
 ^LH0,0
+^PQ1
 ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
 ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
 ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
@@ -1296,6 +1297,7 @@ const generateLabelTSPL = ({
 ^XA
 ^MD17
 ^LH0,0
+^PQ1
 ^FO115,25^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
 ^FO115,53^ADN,18,10^FD${"Wt : "+Weight+" g"}^FS
 ^FO115,79^ADN,18,10^FD${"Code : "+barcode}^FS 
@@ -1316,6 +1318,7 @@ const generateLabelTSPL = ({
 ^XA
 ^MD17
 ^LH0,0
+^PQ1
 ^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
 ^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
 ^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
@@ -1332,6 +1335,7 @@ const generateLabelTSPL = ({
 ^XA
 ^MD17
 ^LH0,0
+^PQ1
 ^FO115,35^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
 ^FO115,60^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
 ^FO335,32^ADN,18,10^FD${"Code : "+barcode}^FS 
@@ -1385,8 +1389,8 @@ app.post('/print-label', async(req, res) => {
                 // For TSC printers, use copy command to send raw TSPL data
                 cmd = `copy "${tmpFile}" "${printer}"`;
             } else {
-                // For Zebra printers, use Out-Printer
-                cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
+                // For Zebra printers, use copy command to send raw ZPL data
+                cmd = `copy "${tmpFile}" "${printer}"`;
             }
 
             console.log(`Executing command: ${cmd}`);
@@ -1524,6 +1528,40 @@ app.get('/usb-devices', (req, res) => {
         });
     } catch (err) {
         console.error('USB devices error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Test ZPL endpoint for debugging
+app.post('/test-zpl', async(req, res) => {
+    try {
+        const labelData = generateLabelTSPL(req.body);
+        const printerType = labelData.type;
+        const printData = labelData.data;
+
+        const tmpDir = path.join('C:', 'tmp');
+        const tmpFile = path.join(tmpDir, 'test-label.zpl');
+        
+        if (!fsfile.existsSync(tmpDir)) {
+            fsfile.mkdirSync(tmpDir, { recursive: true });
+        }
+
+        // Write the print data to file
+        fsfile.writeFileSync(tmpFile, printData, 'utf8');
+        
+        console.log(`Test ZPL data written to: ${tmpFile}`);
+        console.log(`ZPL Content:\n${printData}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'ZPL data generated and saved',
+            filePath: tmpFile,
+            zplContent: printData,
+            printerType: printerType
+        });
+
+    } catch (err) {
+        console.error('Test ZPL error:', err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
