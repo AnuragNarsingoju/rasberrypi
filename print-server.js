@@ -3,6 +3,7 @@ const sharp = require('sharp');
 const path = require('path');
 const util = require('util');
 const fs = require('fs').promises;
+const fsfile = require('fs');
 const cors = require('cors');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
@@ -1255,7 +1256,7 @@ const generateLabelTSPL = ({
     const boxNameLength = (boxName || '').length;
     const yPos = Math.floor(topY + (areaHeight + (boxNameLength * CHAR_HEIGHT)) / 2)
 
-    return ` SIZE 60 mm,45 mm
+    const tsplTemplate = ` SIZE 60 mm,45 mm
             GAP 2 mm,0
             DIRECTION 1
             CLS
@@ -1270,6 +1271,7 @@ const generateLabelTSPL = ({
             TEXT ${xPos},250,"2",0,1,1,"Code : ${barcode}"
             PRINT 1
             `;
+    return { type: 'TSC', data: tsplTemplate };
       } 
     else if(percentage){
           let netWeight;
@@ -1303,7 +1305,7 @@ const generateLabelTSPL = ({
           ^XZ
         `
         ;
-        return new Blob([template], { type: 'text/plain' });
+        return { type: 'ZEBRA', data: template };
       }
   else if (Stwt && !percentage){
     let netWeight;
@@ -1323,7 +1325,7 @@ const generateLabelTSPL = ({
       ^XZ
     `
     ;
-    return new Blob([template], { type: 'text/plain' });
+    return { type: 'ZEBRA', data: template };
   }
   else{
     const template = `
@@ -1336,61 +1338,75 @@ const generateLabelTSPL = ({
       ^FO330,52^BY2,2,30^B3N,N,N,N^FD${barcode}^FS
       ^XZ
     `;
-    return new Blob([template], { type: 'text/plain' });
+    return { type: 'ZEBRA', data: template };
   }
 };
 
 app.post('/print-label', async(req, res) => {
   try {
     
-    const tsplData = generateLabelTSPL(req.body);
+    const labelData = generateLabelTSPL(req.body);
     const isBulk = req.body.isBulk;
+    const printerType = labelData.type;
+    const printData = labelData.data;
 
     const tmpDir = path.join('C:', 'tmp');
-    const tmpFile = path.join(tmpDir, 'label.tspl');
+    const tmpFile = path.join(tmpDir, printerType === 'TSC' ? 'label.tspl' : 'label.zpl');
+    
     if (!fsfile.existsSync(tmpDir)) {
-    fsfile.mkdirSync(tmpDir, { recursive: true });
+        fsfile.mkdirSync(tmpDir, { recursive: true });
     }
-    const primaryPrinter = isBulk === "bulk" ? "TSC TE244" : "ZDesigner ZD220-203dpi ZPL";
-    const fallbackPrinter = isBulk === "bulk" ? "ZDesigner ZD220-203dpi ZPL" : "TSC_TE244"; 
 
-    const arrayBuffer = await tsplData.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Write the print data to file
+    fsfile.writeFileSync(tmpFile, printData, 'utf8');
 
-    fsfile.writeFileSync(tmpFile, buffer);
+    // Define printers based on type
+    const primaryPrinter = printerType === 'TSC' ? "TSC TE244" : "ZDesigner ZD220-203dpi ZPL";
+    const fallbackPrinter = printerType === 'TSC' ? "ZDesigner ZD220-203dpi ZPL" : "TSC_TE244"; 
 
     function printWithCUPS(printer, callback) {
-        const cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
+        // First check if printer exists
+        const checkCmd = `powershell -Command "Get-Printer -Name '${printer}' -ErrorAction SilentlyContinue"`;
+        
+        exec(checkCmd, (checkError, checkStdout, checkStderr) => {
+            if (checkError || !checkStdout.trim()) {
+                console.log(`Printer '${printer}' not found, skipping...`);
+                return callback(new Error(`Printer '${printer}' not found`), null, `Printer '${printer}' not found`, checkCmd);
+            }
+            
+            // Printer exists, proceed with printing
+            const cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
 
-    exec(cmd, (error, stdout, stderr) => {
-        callback(error, stdout, stderr, cmd);
-    });
+            exec(cmd, (error, stdout, stderr) => {
+                callback(error, stdout, stderr, cmd);
+            });
+        });
     }
 
     printWithCUPS(primaryPrinter, (error, stdout, stderr, cmd) => {
-    if (error || stderr) {
-        console.error(`Primary printer failed (${primaryPrinter}). Command: ${cmd}`);
-        console.error('Error:', error);
-        console.error('Stderr:', stderr);
-        console.log('Trying fallback printer...');
+        if (error || stderr) {
+            console.error(`Primary printer failed (${primaryPrinter}). Command: ${cmd}`);
+            console.error('Error:', error);
+            console.error('Stderr:', stderr);
+            console.log('Trying fallback printer...');
 
-        // Try fallback
-        printWithCUPS(fallbackPrinter, (fallbackError, fallbackStdout, fallbackStderr, fallbackCmd) => {
-        if (fallbackError || fallbackStderr) {
-            console.error(`Fallback printer also failed (${fallbackPrinter}). Command: ${fallbackCmd}`);
-            console.error('Error:', fallbackError);
-            console.error('Stderr:', fallbackStderr);
-            return res.status(500).json({ success: false, error: fallbackError?.message || fallbackStderr });
+            // Try fallback
+            printWithCUPS(fallbackPrinter, (fallbackError, fallbackStdout, fallbackStderr, fallbackCmd) => {
+                if (fallbackError || fallbackStderr) {
+                    console.error(`Fallback printer also failed (${fallbackPrinter}). Command: ${fallbackCmd}`);
+                    console.error('Error:', fallbackError);
+                    console.error('Stderr:', fallbackStderr);
+                    return res.status(500).json({ success: false, error: fallbackError?.message || fallbackStderr });
+                } else {
+                    console.log('Printed successfully using fallback printer:', fallbackPrinter);
+                    return res.json({ success: true, jobID: fallbackStdout.trim(), fallback: true, printerType: printerType });
+                }
+            });
+
         } else {
-            console.log('Printed successfully using fallback printer:', fallbackPrinter);
-            return res.json({ success: true, jobID: fallbackStdout.trim(), fallback: true });
+            console.log('Printed successfully using primary printer:', primaryPrinter);
+            return res.json({ success: true, jobID: stdout.trim(), fallback: false, printerType: printerType });
         }
-        });
-
-    } else {
-        console.log('Printed successfully using primary printer:', primaryPrinter);
-        return res.json({ success: true, jobID: stdout.trim(), fallback: false });
-    }
     });
 
     } catch (err) {
