@@ -1228,7 +1228,6 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-
 const labelWidth = 400;          
 const rightHalfWidth = labelWidth / 2;
 const leftEdgeRightHalf = rightHalfWidth; 
@@ -1341,28 +1340,65 @@ const generateLabelTSPL = ({
   }
 };
 
-app.post('/print-label', (req, res) => {
+app.post('/print-label', async(req, res) => {
   try {
-    const tsplData = generateLabelTSPL(req.body);
-    const isBulk = req.body.isBulk
     
-    const tmpFile = '/tmp/label.tspl';
-    const printer = isBulk === "bulk" ? "TSC_TE244" : "Zebraprinter";
-    fs.writeFileSync(tmpFile, tsplData);
+    const tsplData = generateLabelTSPL(req.body);
+    const isBulk = req.body.isBulk;
 
-    exec(`lp -o raw -d ${printer} ${tmpFile}`, (error, stdout, stderr) => {
-      if (error) {
-        console.error('CUPS print error:', error);
-        return res.status(500).json({ success: false, error: error.message });
-      }
-      console.log('CUPS print output:', stdout);
-      res.json({ success: true, jobID: stdout.trim() });
+    const tmpDir = path.join('C:', 'tmp');
+    const tmpFile = path.join(tmpDir, 'label.tspl');
+    if (!fsfile.existsSync(tmpDir)) {
+    fsfile.mkdirSync(tmpDir, { recursive: true });
+    }
+    const primaryPrinter = isBulk === "bulk" ? "TSC TE244" : "ZDesigner ZD220-203dpi ZPL";
+    const fallbackPrinter = isBulk === "bulk" ? "ZDesigner ZD220-203dpi ZPL" : "TSC_TE244"; 
+
+    const arrayBuffer = await tsplData.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    fsfile.writeFileSync(tmpFile, buffer);
+
+    function printWithCUPS(printer, callback) {
+        const cmd = `powershell -Command "Get-Content -Path '${tmpFile}' | Out-Printer -Name '${printer}'"`;
+
+    exec(cmd, (error, stdout, stderr) => {
+        callback(error, stdout, stderr, cmd);
     });
-  } catch (err) {
-    console.error('Print route error:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+    }
+
+    printWithCUPS(primaryPrinter, (error, stdout, stderr, cmd) => {
+    if (error || stderr) {
+        console.error(`Primary printer failed (${primaryPrinter}). Command: ${cmd}`);
+        console.error('Error:', error);
+        console.error('Stderr:', stderr);
+        console.log('Trying fallback printer...');
+
+        // Try fallback
+        printWithCUPS(fallbackPrinter, (fallbackError, fallbackStdout, fallbackStderr, fallbackCmd) => {
+        if (fallbackError || fallbackStderr) {
+            console.error(`Fallback printer also failed (${fallbackPrinter}). Command: ${fallbackCmd}`);
+            console.error('Error:', fallbackError);
+            console.error('Stderr:', fallbackStderr);
+            return res.status(500).json({ success: false, error: fallbackError?.message || fallbackStderr });
+        } else {
+            console.log('Printed successfully using fallback printer:', fallbackPrinter);
+            return res.json({ success: true, jobID: fallbackStdout.trim(), fallback: true });
+        }
+        });
+
+    } else {
+        console.log('Printed successfully using primary printer:', primaryPrinter);
+        return res.json({ success: true, jobID: stdout.trim(), fallback: false });
+    }
+    });
+
+    } catch (err) {
+        console.error('Print route error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
+
 
 app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
