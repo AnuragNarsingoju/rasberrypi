@@ -17,6 +17,7 @@ const corsOptions = {
 };
 
 const { PDFDocument } = require('pdf-lib');
+const { CLIENT_RENEG_LIMIT } = require('tls');
 
 app.use(cors(corsOptions));
 
@@ -1029,6 +1030,33 @@ app.get('/printers', async (req, res) => {
     });
 // Modified printer listing function for Windows
 
+function isPrinterOnline(printerName) {
+    return new Promise((resolve, reject) => {
+        const cmd = `powershell -Command "$p = Get-WmiObject -Query \\"SELECT * FROM Win32_Printer WHERE Name = '${printerName}'\\"; if ($p -and !$p.WorkOffline) { 'ONLINE' } else { 'OFFLINE' }"`;
+
+        exec(cmd, (err, stdout) => {
+            if (err) {
+                console.error('Error checking printer:', err);
+                return resolve(false); // fallback to false
+            }
+            const status = stdout.trim();
+            resolve(status === 'ONLINE');
+        });
+    });
+}
+async function getDefaultPrinterName() {
+    return new Promise((resolve, reject) => {
+        const cmd = `powershell -Command "(Get-WmiObject -Query \\"SELECT * FROM Win32_Printer WHERE Default=$true\\").Name"`;
+        exec(cmd, (err, stdout) => {
+            if (err) {
+                console.error('Error getting default printer:', err);
+                return resolve(null);
+            }
+            resolve(stdout.trim());
+        });
+    });
+}
+
 
 // In your app.post('/print') route, replace only the printer command section with this:
 app.post('/print', async (req, res) => {
@@ -1080,7 +1108,7 @@ app.post('/print', async (req, res) => {
                 : await generateInvoicePDF(invoiceData);
         
 
-        const printerName = invoiceData.metal === 'gold' ? 'Colourprint1' : '"Samsung M2020 Series"'; 
+        const printerName = invoiceData.metal === 'gold' ? 'Colourprint1' : '""'; 
         
 
         if (!printerName) {
@@ -1089,28 +1117,91 @@ app.post('/print', async (req, res) => {
 
         let printCommand;
         if(invoiceData.metal === 'silver'){
-            printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
-            + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
-            + `-NoNewWindow -Wait`;
+            let printerName1 = await getDefaultPrinterName();
+            let isOnline = await isPrinterOnline(printerName1);
+            console.log("Silver : ",isOnline);
+            
+            if(isOnline){
+                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+                + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
+                + `-NoNewWindow -Wait`;
+
+                exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+                    if (error || stderr) {
+                        console.log(printCommand);
+                        console.error('Primary printer failed. Trying fallback printer...');
+                    }
+                    else{
+                        console.log("Printed Successfully");
+                    }
+        
+                });
+            }else{
+                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+                + `-ArgumentList '-silent', '-print-to', 'Colourprint1', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `
+                + `-NoNewWindow -Wait`;
+
+                exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+                    if (error || stderr) {
+                        console.log(printCommand);
+                        console.error('Primary printer failed. Trying fallback printer...');
+                    }
+                    else{
+                        console.log("Printed Successfully");
+                    }
+        
+                });
+            }
         }
         else{
-            printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
-            + `-ArgumentList '-silent', '-print-to', 'Colourprint1', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,${invoiceData.color}', '${tempPDFPath}' `
-            + `-NoNewWindow -Wait`;
-            
+           const isOnline = await isPrinterOnline("Colourprint1")
+            console.log("gold : ",isOnline);
+            if(isOnline){
+                // printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' `
+                // + `-ArgumentList '-silent', '-print-to', 'Colourprint1', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,${invoiceData.color}', '${tempPDFPath}' `
+                // + `-NoNewWindow -Wait`;
+                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+                + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
+                + `-NoNewWindow -Wait`;
+                exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+                    if (error || stderr) {
+                        console.log(printCommand);
+                        console.error('Primary printer failed. Trying fallback printer...');
+                    }
+                    else{
+                        console.log("Printed Successfully");
+                    }
+        
+                });
+            }else{
+                printCommand = `Start-Process -FilePath 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe' ` 
+                + `-ArgumentList '-silent', '-print-to-default', '-print-settings', 'paper=A5,fit,print-as-image=no,autorotate=yes,center=yes,margin-left=0,margin-top=0,margin-right=0,margin-bottom=0,monochrome', '${tempPDFPath}' `  
+                + `-NoNewWindow -Wait`;
+
+                exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+                    if (error || stderr) {
+                        console.log(printCommand);
+                        console.error('Primary printer failed. Trying fallback printer...');
+                    }
+                    else{
+                        console.log("Printed Successfully");
+                    }
+        
+                });
+            }
         }
 
-        exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error: ${error.message}`);
-                return;
-            }
-            if (stderr) {
-                console.error(`stderr: ${stderr}`);
-                return;
-            }
-            console.log(`stdout: ${stdout}`);
-        });
+        // exec(`powershell -Command "${printCommand}"`, (error, stdout, stderr) => {
+
+        //     if (error || stderr) {
+        //         console.log(printCommand);
+        //         console.error('Primary printer failed. Trying fallback printer...');
+        //     }
+        //     else{
+        //         console.log("Printed Successfully");
+        //     }
+     
+        // });
 
 
         //to save the printed pdf
