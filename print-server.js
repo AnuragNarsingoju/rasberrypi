@@ -1256,28 +1256,36 @@ async function printTSCLabel(labelData) {
       const s_cover = sanitize(Cover);
       const s_category = sanitize(category === 'Others' ? itemName : category);
 
+        
+     const labelWidth = 400;          
+     const rightHalfWidth = labelWidth / 2;
+     const leftEdgeRightHalf = rightHalfWidth; 
+     const fontWidth = 12;             
+     const text = "Item1";
+    
+     const xPos = Math.floor(leftEdgeRightHalf + (rightHalfWidth - (text.length * fontWidth)) / 2);
       // Validate required field
       if (!s_barcode || s_barcode.length === 0) {
         return reject(new Error('Valid barcode is required'));
       }
 
       // Build TSPL commands with proper line endings
-      const cmd = [];
-      cmd.push('SIZE 60 mm,45 mm');
-      cmd.push('GAP 2 mm,0');
-      cmd.push('DIRECTION 1');
-      cmd.push('CLS');
-      cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + s_barcode + '"');
-      cmd.push('TEXT 180,' + yPos + ',"2",270,1,1,"' + s_boxName + '"');
-      cmd.push('TEXT 205,245,"2",270,1,1,"' + s_cover + '"');
-      cmd.push('BAR 244,55,3,280');
-      cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
-      cmd.push('TEXT 265,160,"2",0,1,1,"' + s_category + '"');
-      cmd.push('TEXT 265,190,"2",0,1,1,"' + s_boxName + '"');
-      cmd.push('TEXT 265,220,"2",0,1,1,"' + s_cover + '"');
-      cmd.push('TEXT 265,250,"2",0,1,1,"Code : ' + s_barcode + '"');
-      cmd.push('PRINT 1');
-      cmd.push('');
+        const cmd = [];
+        cmd.push('SIZE 60 mm,45 mm');
+        cmd.push('GAP 2 mm,0');
+        cmd.push('DIRECTION 1');
+        cmd.push('CLS');
+        cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + barcode + '"');
+        cmd.push('TEXT 180,340,"2",270,1,1,"Box : ' + (boxName || '') + '"');
+        cmd.push('TEXT 205,340,"2",270,1,1,"Cover : ' + (Cover || '') + '"');
+        cmd.push('BAR 244,55,3,280');
+        cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
+        cmd.push('TEXT ' + xPos + ',160,"2",0,1,1,"' + (category === "Others" ? itemName : category) + '"');
+        cmd.push('TEXT ' + xPos + ',190,"2",0,1,1,"' + (boxName || '') + '"');
+        cmd.push('TEXT ' + xPos + ',220,"2",0,1,1,"' + (Cover || '') + '"');
+        cmd.push('TEXT ' + xPos + ',250,"2",0,1,1,"Code : ' + barcode + '"');
+        cmd.push('PRINT 1');
+        cmd.push('');
 
       const tsplCommands = cmd.join('\r\n');
 
