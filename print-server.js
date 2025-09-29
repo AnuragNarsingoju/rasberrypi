@@ -3,10 +3,9 @@ const sharp = require('sharp');
 const path = require('path');
 const util = require('util');
 const fs = require('fs').promises;
-const fsfile = require('fs');
+const os = require('os');
 const cors = require('cors');
 const { exec } = require('child_process');
-const usb = require('usb');
 const execPromise = util.promisify(exec);
 const app = express();
 const port = 5010;
@@ -1412,6 +1411,241 @@ app.post('/print-label-tsc', async (req, res) => {
     });
   }
 });
+
+
+async function printZebraLabel(labelData) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const { category, itemName, Weight, Stwt, percentage, barcode } = labelData;
+
+      if (!barcode || !Weight) {
+        return reject(new Error('Barcode and Weight are required'));
+      }
+
+      let zplTemplate = '';
+      
+      // Case 1: Has percentage
+      if (percentage) {
+        let netWeight;
+        if (Stwt) {
+          netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2);
+        }
+
+        zplTemplate = Stwt ? `
+^XA
+^MD17
+^PW955
+^LL142
+^LH0,0
+^FO113,16^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
+^FO113,60^ADN,18,10^FDSW : ${Stwt} grms^FS
+^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
+^FO335,21^ADN,18,10^FDPct : ${percentage}%^FS
+^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^XZ
+` : `
+^XA
+^MD17
+^PW955
+^LL142
+^LH0,0
+^FO115,25^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO115,53^ADN,18,10^FDWt : ${Weight} g^FS
+^FO115,79^ADN,18,10^FDCode : ${barcode}^FS
+^FO315,20^ADN,18,10^FDPct : ${percentage}%^FS
+^FO315,45^ADN,18,10^FDCode : ${barcode}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^XZ
+`;
+      }
+      // Case 2: Has Stwt but no percentage
+      else if (Stwt && !percentage) {
+        let netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2);
+        
+        zplTemplate = `
+^XA
+^MD17
+^PW955
+^LL142
+^LH0,0
+^FO113,16^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
+^FO113,60^ADN,18,10^FDSW : ${Stwt} grms^FS
+^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
+^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^XZ
+`;
+      }
+      // Case 3: Only basic info
+      else {
+        zplTemplate = `
+^XA
+^MD17
+^PW955
+^LL142
+^LH0,0
+^FO115,35^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
+^FO335,32^ADN,18,10^FDCode : ${barcode}^FS
+^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^XZ
+`;
+      }
+
+      // PowerShell script for Zebra printer
+      const psScript = `
+$printerObj = Get-Printer | Where-Object { $_.Name -like '*ZD*' -or $_.Name -like '*Zebra*' -or $_.DriverName -like '*Zebra*' } | Select-Object -First 1
+if (-not $printerObj) {
+    Write-Error "No Zebra printer found"
+    exit 1
+}
+$printerName = $printerObj.Name
+
+$rawPrinterTypeExists = [AppDomain]::CurrentDomain.GetAssemblies() |
+    ForEach-Object { try { $_.GetTypes() } catch { } } |
+    Where-Object { $_ -and $_.Name -eq 'RawPrinterZebra' }
+
+if (-not $rawPrinterTypeExists) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+[StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+public class DOCINFO {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+}
+
+public class RawPrinterZebra {
+    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFO di);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
+
+    public static int LastError = 0;
+
+    public static bool SendString(string printerName, string data) {
+        IntPtr hPrinter = IntPtr.Zero;
+        LastError = 0;
+        if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero)) {
+            LastError = Marshal.GetLastWin32Error();
+            return false;
+        }
+        var di = new DOCINFO();
+        di.pDocName = "Zebra Label";
+        di.pDataType = "RAW";
+        if (!StartDocPrinter(hPrinter, 1, di)) {
+            LastError = Marshal.GetLastWin32Error();
+            ClosePrinter(hPrinter);
+            return false;
+        }
+        if (!StartPagePrinter(hPrinter)) {
+            LastError = Marshal.GetLastWin32Error();
+            EndDocPrinter(hPrinter);
+            ClosePrinter(hPrinter);
+            return false;
+        }
+        try {
+            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(data);
+            int written;
+            if (!WritePrinter(hPrinter, bytes, bytes.Length, out written)) {
+                LastError = Marshal.GetLastWin32Error();
+                return false;
+            }
+        }
+        finally {
+            EndPagePrinter(hPrinter);
+            EndDocPrinter(hPrinter);
+            ClosePrinter(hPrinter);
+        }
+        return true;
+    }
+}
+"@ -ErrorAction Stop
+}
+
+$zpl = @'
+${zplTemplate.replace(/'/g, "''")}
+'@
+
+$ok = [RawPrinterZebra]::SendString($printerName, $zpl)
+
+if ($ok) {
+    Write-Output "SUCCESS"
+    exit 0
+} else {
+    $err = [RawPrinterZebra]::LastError
+    $msg = (New-Object System.ComponentModel.Win32Exception($err)).Message
+    Write-Error "FAILED: $msg"
+    exit 1
+}
+`;
+
+      const tempDir = os.tmpdir();
+      const scriptPath = path.join(tempDir, `print-zebra-${Date.now()}.ps1`);
+      await fs.writeFile(scriptPath, psScript, 'utf8');
+
+      const psCommand = `powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}"`;
+
+      exec(psCommand, async (error, stdout, stderr) => {
+        try {
+          await fs.unlink(scriptPath);
+        } catch (e) {
+          console.error('Failed to delete temp file:', e);
+        }
+
+        if (error) {
+          return reject(new Error(stderr || error.message));
+        }
+
+        if (stdout.includes('SUCCESS')) {
+          resolve({ success: true, message: 'Label printed successfully' });
+        } else {
+          reject(new Error(stderr || 'Print failed'));
+        }
+      });
+
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Route - paste this where your other routes are
+app.post('/print-zebra-label', async (req, res) => {
+  try {
+    const result = await printZebraLabel(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Print error:', error.message);
+    res.status(500).json({ 
+      error: 'Print failed', 
+      details: error.message 
+    });
+  }
+});
+
+
 app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
