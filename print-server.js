@@ -1439,10 +1439,16 @@ app.post('/print-label-tsc', async (req, res) => {
 });
 
 
+
 async function printZebraLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
-      const { category, itemName, Weight, Stwt, percentage, barcode } = labelData;
+      const { category, itemName, Weight, Stwt, percentage, barcode,quantity } = labelData;
+
+    const printQuantity = parseInt(quantity) || 1;
+      if (printQuantity < 1 || printQuantity > 100) {
+        return reject(new Error('Quantity must be between 1 and 100'));
+      }
 
       if (!barcode || !Weight) {
         return reject(new Error('Barcode and Weight are required'));
@@ -1470,7 +1476,7 @@ async function printZebraLabel(labelData) {
 ^FO335,21^ADN,18,10^FDPct : ${percentage}%^FS
 ^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
 ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
-^XZ
+
 ` : `
 ^XA
 ^MD17
@@ -1483,7 +1489,7 @@ async function printZebraLabel(labelData) {
 ^FO315,20^ADN,18,10^FDPct : ${percentage}%^FS
 ^FO315,45^ADN,18,10^FDCode : ${barcode}^FS
 ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
-^XZ
+
 `;
       }
       // Case 2: Has Stwt but no percentage
@@ -1502,7 +1508,6 @@ async function printZebraLabel(labelData) {
 ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
 ^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
 ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
-^XZ
 `;
       }
       // Case 3: Only basic info
@@ -1517,10 +1522,11 @@ async function printZebraLabel(labelData) {
 ^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
 ^FO335,32^ADN,18,10^FDCode : ${barcode}^FS
 ^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
-^XZ
+
 `;
       }
 
+       zplTemplate += `^PQ${printQuantity},0,1,Y\n^XZ\n`;
       // PowerShell script for Zebra printer
       const psScript = `
 $printerObj = Get-Printer | Where-Object { $_.Name -like '*ZD*' -or $_.Name -like '*Zebra*' -or $_.DriverName -like '*Zebra*' } | Select-Object -First 1
@@ -1656,7 +1662,6 @@ if ($ok) {
     }
   });
 }
-
 // Route - paste this where your other routes are
 app.post('/print-label-zebra', async (req, res) => {
   try {
