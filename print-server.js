@@ -1241,30 +1241,48 @@ async function printTSCLabel(labelData) {
       const yPos = 315;
 
       // Build TSPL commands
-      const tsplCommands = [
-        'SIZE 60 mm,45 mm',
-        'GAP 2 mm,0',
-        'DIRECTION 1',
-        'CLS',
-        `QRCODE 35,130,H,6,A,0,M2,S7,"${barcode}"`,
-        `TEXT 180,${yPos},"2",270,1,1,"${boxName || ''}"`,
-        `TEXT 205,245,"2",270,1,1,"${Cover || ''}"`,
-        'BAR 244,55,3,280',
-        'TEXT 330,80,"4",0,1,1,"NBJ"',
-        `TEXT 265,160,"2",0,1,1,"${category === 'Others' ? itemName : category}"`,
-        `TEXT 265,190,"2",0,1,1,"${boxName || ''}"`,
-        `TEXT 265,220,"2",0,1,1,"${Cover || ''}"`,
-        `TEXT 265,250,"2",0,1,1,"Code : ${barcode}"`,
-        'PRINT 1'
-      ].join('\r\n') + '\r\n';
+      const sanitize = (str) => {
+        if (!str) return '';
+        return String(str)
+          .replace(/[\r\n\t]/g, ' ')
+          .replace(/"/g, '\\"')       
+          .replace(/\\/g, '\\\\')     
+          .trim()
+          .substring(0, 100);         
+      };
+
+      const s_barcode = sanitize(barcode);
+      const s_boxName = sanitize(boxName);
+      const s_cover = sanitize(Cover);
+      const s_category = sanitize(category === 'Others' ? itemName : category);
+
+      // Validate required field
+      if (!s_barcode || s_barcode.length === 0) {
+        return reject(new Error('Valid barcode is required'));
+      }
+
+      // Build TSPL commands with proper line endings
+      const cmd = [];
+      cmd.push('SIZE 60 mm,45 mm');
+      cmd.push('GAP 2 mm,0');
+      cmd.push('DIRECTION 1');
+      cmd.push('CLS');
+      cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + s_barcode + '"');
+      cmd.push('TEXT 180,' + yPos + ',"2",270,1,1,"' + s_boxName + '"');
+      cmd.push('TEXT 205,245,"2",270,1,1,"' + s_cover + '"');
+      cmd.push('BAR 244,55,3,280');
+      cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
+      cmd.push('TEXT 265,160,"2",0,1,1,"' + s_category + '"');
+      cmd.push('TEXT 265,190,"2",0,1,1,"' + s_boxName + '"');
+      cmd.push('TEXT 265,220,"2",0,1,1,"' + s_cover + '"');
+      cmd.push('TEXT 265,250,"2",0,1,1,"Code : ' + s_barcode + '"');
+      cmd.push('PRINT 1');
+      cmd.push('');
+
+      const tsplCommands = cmd.join('\r\n');
 
       // PowerShell script
       const psScript = `
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Error "Administrator privileges required"
-    exit 1
-}
-
 $printerObj = Get-Printer | Where-Object { $_.Name -like 'TSC*' -or $_.DriverName -like 'TSC*' } | Select-Object -First 1
 if (-not $printerObj) {
     Write-Error "No TSC printer found"
