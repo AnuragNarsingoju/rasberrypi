@@ -1438,7 +1438,13 @@ app.post('/print-label-tsc', async (req, res) => {
   }
 });
 
+// Add these imports at the top of your file (if not already present)
+const { exec } = require('child_process');
+const fs = require('fs').promises;
+const path = require('path');
+const os = require('os');
 
+// Function to print Zebra label
 async function printZebraLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
@@ -1469,7 +1475,7 @@ async function printZebraLabel(labelData) {
 ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
 ^FO335,21^ADN,18,10^FDPct : ${percentage}%^FS
 ^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO330,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
 ^XZ
 ` : `
 ^XA
@@ -1482,7 +1488,7 @@ async function printZebraLabel(labelData) {
 ^FO115,79^ADN,18,10^FDCode : ${barcode}^FS
 ^FO315,20^ADN,18,10^FDPct : ${percentage}%^FS
 ^FO315,45^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO313,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
 ^XZ
 `;
       }
@@ -1501,7 +1507,7 @@ async function printZebraLabel(labelData) {
 ^FO113,60^ADN,18,10^FDSW : ${Stwt} grms^FS
 ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
 ^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO330,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
 ^XZ
 `;
       }
@@ -1516,7 +1522,7 @@ async function printZebraLabel(labelData) {
 ^FO115,35^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
 ^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
 ^FO335,32^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO330,52^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
 ^XZ
 `;
       }
@@ -1645,7 +1651,10 @@ if ($ok) {
         }
 
         if (stdout.includes('SUCCESS')) {
-          resolve({ success: true, message: 'Label printed successfully' });
+          resolve({ 
+            success: true, 
+            message: `${printQuantity} label(s) printed successfully` 
+          });
         } else {
           reject(new Error(stderr || 'Print failed'));
         }
@@ -1658,7 +1667,7 @@ if ($ok) {
 }
 
 // Route - paste this where your other routes are
-app.post('/print-label-zebra', async (req, res) => {
+app.post('/print-zebra-label', async (req, res) => {
   try {
     const result = await printZebraLabel(req.body);
     res.json(result);
