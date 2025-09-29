@@ -1230,342 +1230,188 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-const labelWidth = 400;          
-const rightHalfWidth = labelWidth / 2;
-const leftEdgeRightHalf = rightHalfWidth; 
-const fontWidth = 12;             
-const text = "Item1";
+async function printTSCLabel(labelData) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const { barcode, boxName, Cover, category, itemName } = labelData;
 
-const xPos = Math.floor(leftEdgeRightHalf + (rightHalfWidth - (text.length * fontWidth)) / 2);
-
-const generateLabelTSPL = ({
-      isBulk,
-      category,
-      itemName,
-      Weight,
-      Stwt,
-      barcode,
-      boxName,
-      Cover,
-      percentage
-    }) => {
-  if (isBulk === "bulk") {
-    const topY = 30;
-    const bottomY = 350;
-    const areaHeight = bottomY - topY;
-    const CHAR_HEIGHT = 20;     
-    const boxNameLength = (boxName || '').length;
-    const yPos = Math.floor(topY + (areaHeight + (boxNameLength * CHAR_HEIGHT)) / 2)
-
-    const tsplTemplate = ` SIZE 60 mm,45 mm
-            GAP 2 mm,0
-            DIRECTION 1
-            CLS
-            QRCODE 35,130,H,6,A,0,M2,S7,"${barcode}"
-            TEXT 180,${yPos},"2",270,1,1,"${boxName || ''}"
-            TEXT 205,245,"2",270,1,1,"${Cover || ''}"
-            BAR 244,55,3,280
-            TEXT 330,80,"4",0,1,1,"NBJ"
-            TEXT ${xPos},160,"2",0,1,1,"${category === "Others" ? itemName : category}"
-            TEXT ${xPos},190,"2",0,1,1,"${boxName || ''}"
-            TEXT ${xPos},220,"2",0,1,1,"${Cover || ''}"
-            TEXT ${xPos},250,"2",0,1,1,"Code : ${barcode}"
-            PRINT 1
-            `;
-    return { type: 'TSC', data: tsplTemplate };
-      } 
-    else if(percentage){
-          let netWeight;
-          if(Stwt){
-            netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
-          };
-        const template = Stwt?`
-^XA
-^MD17
-^LH0,0
-^PQ1
-^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
-^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
-^FO335,21^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
-^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
-^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-^XZ
-        `:
-        `
-^XA
-^MD17
-^LH0,0
-^PQ1
-^FO115,25^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-^FO115,53^ADN,18,10^FD${"Wt : "+Weight+" g"}^FS
-^FO115,79^ADN,18,10^FD${"Code : "+barcode}^FS 
-^FO315,20^ADN,18,10^FD${"Pct : "+percentage+"%"}^FS
-^FO315,45^ADN,18,10^FD${"Code : "+barcode}^FS 
-^FO313,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-^XZ
-        `
-        ;
-        return { type: 'ZEBRA', data: template };
+      if (!barcode) {
+        return reject(new Error('Barcode is required'));
       }
-  else if (Stwt && !percentage){
-    let netWeight;
-    if(Stwt){
-        netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2)
-    };
-    const template =`
-^XA
-^MD17
-^LH0,0
-^PQ1
-^FO113,16^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-^FO113,38^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-^FO113,60^ADN,18,10^FD${"SW : "+Stwt+" grms"}^FS
-^FO113,83^ADN,18,10^FD${"NW : "+netWeight+" grms"}^FS
-^FO335,47^ADN,18,10^FD${"Code : "+barcode}^FS 
-^FO330,66^BY2,2,30^B3N,N,N,N,30^FD${barcode}^FS
-^XZ
-    `
-    ;
-    return { type: 'ZEBRA', data: template };
-  }
-  else{
-    const template = `
-^XA
-^MD17
-^LH0,0
-^PQ1
-^FO115,35^ADN,18,10^FD${category==="Others"?itemName:category}^FS  
-^FO115,60^ADN,18,10^FD${"Wt : "+Weight+" grms"}^FS
-^FO335,32^ADN,18,10^FD${"Code : "+barcode}^FS 
-^FO330,52^BY2,2,30^B3N,N,N,N^FD${barcode}^FS
-^XZ
-    `;
-    return { type: 'ZEBRA', data: template };
-  }
-};
 
-app.post('/print-label', async(req, res) => {
-  try {
-    
-    const labelData = generateLabelTSPL(req.body);
-    const isBulk = req.body.isBulk;
-    const printerType = labelData.type;
-    const printData = labelData.data;
+      const yPos = 315;
 
-    const tmpDir = path.join('C:', 'tmp');
-    const tmpFile = path.join(tmpDir, printerType === 'TSC' ? 'label.tspl' : 'label.zpl');
-    
-    if (!fsfile.existsSync(tmpDir)) {
-        fsfile.mkdirSync(tmpDir, { recursive: true });
-    }
+      // Build TSPL commands
+      const tsplCommands = [
+        'SIZE 60 mm,45 mm',
+        'GAP 2 mm,0',
+        'DIRECTION 1',
+        'CLS',
+        `QRCODE 35,130,H,6,A,0,M2,S7,"${barcode}"`,
+        `TEXT 180,${yPos},"2",270,1,1,"${boxName || ''}"`,
+        `TEXT 205,245,"2",270,1,1,"${Cover || ''}"`,
+        'BAR 244,55,3,280',
+        'TEXT 330,80,"4",0,1,1,"NBJ"',
+        `TEXT 265,160,"2",0,1,1,"${category === 'Others' ? itemName : category}"`,
+        `TEXT 265,190,"2",0,1,1,"${boxName || ''}"`,
+        `TEXT 265,220,"2",0,1,1,"${Cover || ''}"`,
+        `TEXT 265,250,"2",0,1,1,"Code : ${barcode}"`,
+        'PRINT 1'
+      ].join('\r\n') + '\r\n';
 
-    // Write the print data to file
-    fsfile.writeFileSync(tmpFile, printData, 'utf8');
-    
-    // Debug: Log the print data and file path
-    console.log(`Printing ${printerType} data to: ${tmpFile}`);
-    console.log(`Print data preview: ${printData.substring(0, 200)}...`);
+      // PowerShell script
+      const psScript = `
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Error "Administrator privileges required"
+    exit 1
+}
 
-    // Define printers based on type
-    const primaryPrinter = printerType === 'TSC' ? "TSC TE244" : "ZDesigner ZD220-203dpi ZPL";
-    const fallbackPrinter = printerType === 'TSC' ? "ZDesigner ZD220-203dpi ZPL" : "TSC_TE244"; 
+$printerObj = Get-Printer | Where-Object { $_.Name -like 'TSC*' -or $_.DriverName -like 'TSC*' } | Select-Object -First 1
+if (-not $printerObj) {
+    Write-Error "No TSC printer found"
+    exit 1
+}
+$printerName = $printerObj.Name
 
-    function printWithCUPS(printer, callback) {
-        // First check if printer exists
-        const checkCmd = `powershell -Command "Get-Printer -Name '${printer}' -ErrorAction SilentlyContinue"`;
-        
-        exec(checkCmd, (checkError, checkStdout, checkStderr) => {
-            if (checkError || !checkStdout.trim()) {
-                console.log(`Printer '${printer}' not found, skipping...`);
-                return callback(new Error(`Printer '${printer}' not found`), null, `Printer '${printer}' not found`, checkCmd);
-            }
-            
-            // Printer exists, proceed with printing
-            let cmd;
-            
-            if (printerType === 'TSC') {
-                // For TSC printers, use copy command to send raw TSPL data
-                cmd = `copy "${tmpFile}" "${printer}"`;
-            } else {
-                // For Zebra printers, use copy command to send raw ZPL data
-                cmd = `copy "${tmpFile}" "${printer}"`;
-            }
+$rawPrinterTypeExists = [AppDomain]::CurrentDomain.GetAssemblies() |
+    ForEach-Object { try { $_.GetTypes() } catch { } } |
+    Where-Object { $_ -and $_.Name -eq 'RawPrinter3' }
 
-            console.log(`Executing command: ${cmd}`);
-            exec(cmd, (error, stdout, stderr) => {
-                if (error) {
-                    console.error(`Command failed: ${error.message}`);
-                }
-                if (stdout) {
-                    console.log(`Command output: ${stdout}`);
-                }
-                if (stderr) {
-                    console.error(`Command stderr: ${stderr}`);
-                }
-                callback(error, stdout, stderr, cmd);
-            });
-        });
-    }
+if (-not $rawPrinterTypeExists) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
 
-    printWithCUPS(primaryPrinter, (error, stdout, stderr, cmd) => {
-        if (error || stderr) {
-            console.error(`Primary printer failed (${primaryPrinter}). Command: ${cmd}`);
-            console.error('Error:', error);
-            console.error('Stderr:', stderr);
-            console.log('Trying fallback printer...');
+[StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+public class DOCINFO {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+}
 
-            // Try fallback
-            printWithCUPS(fallbackPrinter, (fallbackError, fallbackStdout, fallbackStderr, fallbackCmd) => {
-                if (fallbackError || fallbackStderr) {
-                    console.error(`Fallback printer also failed (${fallbackPrinter}). Command: ${fallbackCmd}`);
-                    console.error('Error:', fallbackError);
-                    console.error('Stderr:', fallbackStderr);
-                    return res.status(500).json({ success: false, error: fallbackError?.message || fallbackStderr });
-                } else {
-                    console.log('Printed successfully using fallback printer:', fallbackPrinter);
-                    return res.json({ success: true, jobID: fallbackStdout.trim(), fallback: true, printerType: printerType });
-                }
-            });
+public class RawPrinter3 {
+    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
 
-        } else {
-            console.log('Printed successfully using primary printer:', primaryPrinter);
-            return res.json({ success: true, jobID: stdout.trim(), fallback: false, printerType: printerType });
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFO di);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
+
+    public static int LastError = 0;
+
+    public static bool SendString(string printerName, string data) {
+        IntPtr hPrinter = IntPtr.Zero;
+        LastError = 0;
+        if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero)) {
+            LastError = Marshal.GetLastWin32Error();
+            return false;
         }
-    });
-
-    } catch (err) {
-        console.error('Print route error:', err);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// USB Printer endpoint
-app.post('/print-label-usb', async(req, res) => {
-    try {
-        const labelData = generateLabelTSPL(req.body);
-        const printerType = labelData.type;
-        const printData = labelData.data;
-
-        // Find USB printer (ZDesigner ZD220-203dpi ZPL)
-        const devices = usb.getDeviceList();
-        const printer = devices.find(device => {
-            return device.deviceDescriptor.idVendor === 0x0a5f; // ZDesigner vendor ID
-        });
-
-        if (!printer) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'USB printer not found. Please ensure ZDesigner ZD220-203dpi ZPL is connected.' 
-            });
+        var di = new DOCINFO();
+        di.pDocName = "TSPL Job";
+        di.pDataType = "RAW";
+        if (!StartDocPrinter(hPrinter, 1, di)) {
+            LastError = Marshal.GetLastWin32Error();
+            ClosePrinter(hPrinter);
+            return false;
         }
-
+        if (!StartPagePrinter(hPrinter)) {
+            LastError = Marshal.GetLastWin32Error();
+            EndDocPrinter(hPrinter);
+            ClosePrinter(hPrinter);
+            return false;
+        }
         try {
-            printer.open();
-            const interface = printer.interfaces[0];
-            interface.claim();
-
-            const endpoint = interface.endpoints.find(ep => ep.direction === 'out');
-            if (!endpoint) {
-                throw new Error('No output endpoint found');
+            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(data);
+            int written;
+            if (!WritePrinter(hPrinter, bytes, bytes.Length, out written)) {
+                LastError = Marshal.GetLastWin32Error();
+                return false;
             }
+        }
+        finally {
+            EndPagePrinter(hPrinter);
+            EndDocPrinter(hPrinter);
+            ClosePrinter(hPrinter);
+        }
+        return true;
+    }
+}
+"@ -ErrorAction Stop
+}
 
-            // Convert string to buffer
-            const buffer = Buffer.from(printData, 'utf8');
-            
-            // Send data to printer
-            endpoint.transfer(buffer, (error) => {
-                interface.release();
-                printer.close();
-                
-                if (error) {
-                    console.error('USB transfer error:', error);
-                    return res.status(500).json({ 
-                        success: false, 
-                        error: 'Failed to send data to USB printer: ' + error.message 
-                    });
-                }
-                
-                console.log('Successfully sent data to USB printer');
-                res.json({ 
-                    success: true, 
-                    message: 'Label sent to USB printer successfully',
-                    printerType: printerType
-                });
-            });
+$tspl = @'
+${tsplCommands.replace(/'/g, "''")}
+'@
 
-        } catch (usbError) {
-            console.error('USB communication error:', usbError);
-            res.status(500).json({ 
-                success: false, 
-                error: 'USB communication failed: ' + usbError.message 
-            });
+$ok = [RawPrinter3]::SendString($printerName, $tspl)
+
+if ($ok) {
+    Write-Output "SUCCESS"
+    exit 0
+} else {
+    $err = [RawPrinter3]::LastError
+    $msg = (New-Object System.ComponentModel.Win32Exception($err)).Message
+    Write-Error "FAILED: $msg"
+    exit 1
+}
+`;
+
+      const tempDir = os.tmpdir();
+      const scriptPath = path.join(tempDir, `print-label-${Date.now()}.ps1`);
+      await fs.writeFile(scriptPath, psScript, 'utf8');
+
+      const psCommand = `powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}"`;
+
+      exec(psCommand, async (error, stdout, stderr) => {
+        try {
+          await fs.unlink(scriptPath);
+        } catch (e) {
+          console.error('Failed to delete temp file:', e);
         }
 
-    } catch (err) {
-        console.error('USB print route error:', err);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Get USB devices endpoint
-app.get('/usb-devices', (req, res) => {
-    try {
-        const devices = usb.getDeviceList();
-        const deviceList = devices.map(device => ({
-            vendorId: device.deviceDescriptor.idVendor,
-            productId: device.deviceDescriptor.idProduct,
-            manufacturer: device.deviceDescriptor.iManufacturer,
-            product: device.deviceDescriptor.iProduct,
-            serialNumber: device.deviceDescriptor.iSerialNumber
-        }));
-        
-        res.json({ 
-            success: true, 
-            devices: deviceList,
-            message: 'USB devices listed successfully'
-        });
-    } catch (err) {
-        console.error('USB devices error:', err);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Test ZPL endpoint for debugging
-app.post('/test-zpl', async(req, res) => {
-    try {
-        const labelData = generateLabelTSPL(req.body);
-        const printerType = labelData.type;
-        const printData = labelData.data;
-
-        const tmpDir = path.join('C:', 'tmp');
-        const tmpFile = path.join(tmpDir, 'test-label.zpl');
-        
-        if (!fsfile.existsSync(tmpDir)) {
-            fsfile.mkdirSync(tmpDir, { recursive: true });
+        if (error) {
+          return reject(new Error(stderr || error.message));
         }
 
-        // Write the print data to file
-        fsfile.writeFileSync(tmpFile, printData, 'utf8');
-        
-        console.log(`Test ZPL data written to: ${tmpFile}`);
-        console.log(`ZPL Content:\n${printData}`);
-        
-        res.json({ 
-            success: true, 
-            message: 'ZPL data generated and saved',
-            filePath: tmpFile,
-            zplContent: printData,
-            printerType: printerType
-        });
+        if (stdout.includes('SUCCESS')) {
+          resolve({ success: true, message: 'Label printed successfully' });
+        } else {
+          reject(new Error(stderr || 'Print failed'));
+        }
+      });
 
     } catch (err) {
-        console.error('Test ZPL error:', err);
-        res.status(500).json({ success: false, error: err.message });
+      reject(err);
     }
-});
+  });
+}
 
+app.post('/print-label-tsc', async (req, res) => {
+  try {
+    const result = await printTSCLabel(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Print error:', error.message);
+    res.status(500).json({ 
+      error: 'Print failed', 
+      details: error.message 
+    });
+  }
+});
 app.listen(5010, () => {
     console.log(`Print server running on port ${port}`);
     console.log(`Access the server at http://localhost:${port}`);
