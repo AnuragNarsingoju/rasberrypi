@@ -1632,7 +1632,7 @@ if ($ok) {
 }
 
 // Route - paste this where your other routes are
-app.post('/print-zebra-label', async (req, res) => {
+app.post('/print-label-zebra', async (req, res) => {
   try {
     const result = await printZebraLabel(req.body);
     res.json(result);
