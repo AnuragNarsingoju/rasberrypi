@@ -1232,7 +1232,7 @@ app.get('/health', (req, res) => {
 async function printTSCLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
-      const { Code, Box, Cover, Category, Name,CoverLabel,CoverCount } = labelData;
+      const { Code, Box, Cover, Category, Name } = labelData;
 
       if (!Code) {
         return reject(new Error('Code is required'));
@@ -1255,9 +1255,6 @@ async function printTSCLabel(labelData) {
       const s_boxName = sanitize(Box);
       const s_cover = sanitize(Cover);
       const s_Category = sanitize(Category === 'Others' ? Name : Category);
-        
-      const s_CoverLabel = CoverLabel || false;
-      const s_CoverCount = CoverCount || 0;
 
         
      const labelWidth = 400;          
@@ -1267,43 +1264,28 @@ async function printTSCLabel(labelData) {
      const text = "Item1";
     
      const xPos = Math.floor(leftEdgeRightHalf + (rightHalfWidth - (text.length * fontWidth)) / 2);
-     
       // Validate required field
       if (!s_Code || s_Code.length === 0) {
         return reject(new Error('Valid Code is required'));
       }
-      const cmd = [];
-      if(s_CoverLabel){
-            cmd.push('SIZE 60 mm,45 mm');
-            cmd.push('GAP 2 mm,0');
-            cmd.push('DIRECTION 1');
-            cmd.push('CLS');
-            cmd.push('TEXT 200,90,"0",0,2,3,"NBJ"');
-            cmd.push('TEXT 120,150,"0",0,2,3,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
-            cmd.push('TEXT 120,210,"0",0,2,3,"Cover : ' + (s_cover.charAt(0).toUpperCase() + s_cover.slice(1) || '') + '"');
-            cmd.push('TEXT 120,270,"0",0,2,3,"Count : ' + (CoverCount || '') + '"');
-            cmd.push('PRINT 1');
-            cmd.push('');
-      }
-      else{
-            cmd.push('SIZE 60 mm,45 mm');
-            cmd.push('GAP 2 mm,0');
-            cmd.push('DIRECTION 1');
-            cmd.push('CLS');
-            cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + Code + '"');
-            cmd.push('TEXT 180,340,"2",270,1,1,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
-            cmd.push('TEXT 205,340,"2",270,1,1,"Cover : ' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
-            cmd.push('BAR 240,35,3,300');
-            cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
-            cmd.push('TEXT ' + xPos + ',160,"2",0,1,1,"' + (Category === "Others" ? Name : Category) + '"');
-            cmd.push('TEXT ' + xPos + ',190,"2",0,1,1,"' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
-            cmd.push('TEXT ' + xPos + ',220,"2",0,1,1,"' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
-            cmd.push('TEXT ' + xPos + ',250,"2",0,1,1,"Code : ' + Code + '"');
-            cmd.push('PRINT 1');
-            cmd.push('');
-        }
 
-     
+      // Build TSPL commands with proper line endings
+        const cmd = [];
+        cmd.push('SIZE 60 mm,45 mm');
+        cmd.push('GAP 2 mm,0');
+        cmd.push('DIRECTION 1');
+        cmd.push('CLS');
+        cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + Code + '"');
+        cmd.push('TEXT 180,340,"2",270,1,1,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+        cmd.push('TEXT 205,340,"2",270,1,1,"Cover : ' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
+        cmd.push('BAR 240,35,3,300');
+        cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
+        cmd.push('TEXT ' + xPos + ',160,"2",0,1,1,"' + (Category === "Others" ? Name : Category) + '"');
+        cmd.push('TEXT ' + xPos + ',190,"2",0,1,1,"' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+        cmd.push('TEXT ' + xPos + ',220,"2",0,1,1,"' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
+        cmd.push('TEXT ' + xPos + ',250,"2",0,1,1,"Code : ' + Code + '"');
+        cmd.push('PRINT 1');
+        cmd.push('');
 
       const tsplCommands = cmd.join('\r\n');
 
@@ -1460,10 +1442,10 @@ app.post('/print-label-tsc', async (req, res) => {
 async function printZebraLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
-        console.log(labelData);
+      console.log(labelData);
       const { Category, Name, Weight, StoneWeight, Percentage, Code,Quantity,boxName,Cover } = labelData;
 
-    const printQuantity = parseInt(Quantity)< 0 ? 1 : parseInt(Quantity) || 1;
+      const printQuantity = parseInt(Quantity)< 0 ? 1 : parseInt(Quantity) || 1;
 
       if (printQuantity < 1 || printQuantity > 100) {
         return reject(new Error('Quantity must be between 1 and 100'));
@@ -1476,88 +1458,90 @@ async function printZebraLabel(labelData) {
       let zplTemplate = '';
 
       if(Quantity>1){
-        `^XA
+        zplTemplate = `^XA
         ^MD17
         ^LH0,0  
-        ^FO120,20^ADN,18,10^FD${Name+" - "+Code}^FS  
-        ^FO120,45^ADN,18,10^FD${boxName}^FS
-        ^FO120,67^ADN,18,10^FD${Cover}^FS
+        ^FO120,25^ADN,18,10^FD${Name+" - "+Code}^FS  
+        ^FO120,50^ADN,18,10^FD${boxName}^FS
+        ^FO120,75^ADN,18,10^FD${Cover}^FS
         ^FO335,18^ADN,18,10^FD${"NBJ"}^FS  
         ^FO336,18^ADN,18,10^FD${"NBJ"}^FS  
         ^FO335,43^ADN,18,10^FD${"Code : "+Code}^FS 
         ^FO317,65^BY2,2,30^B3N,N,N,N^FD${Code}^FS
-        ^XZ`
+        `
       }
-      
-      // Case 1: Has Percentage
-      if (Percentage) {
-        let netWeight;
-        if (StoneWeight) {
-          netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
+      else{
+        if (Percentage) {
+            let netWeight;
+            if (StoneWeight) {
+            netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
+            }
+
+            zplTemplate = StoneWeight ? `
+    ^XA
+    ^MD17
+    ^PW955
+    ^LL142
+    ^LH0,0
+    ^FO113,16^ADN,18,10^FD${Name}^FS
+    ^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
+    ^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
+    ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
+    ^FO335,21^ADN,18,10^FDPct : ${Percentage}%^FS
+    ^FO335,47^ADN,18,10^FDCode : ${Code}^FS
+    ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
+
+    ` : `
+    ^XA
+    ^MD17
+    ^PW955
+    ^LL142
+    ^LH0,0
+    ^FO115,25^ADN,18,10^FD${Name}^FS
+    ^FO115,53^ADN,18,10^FDWt : ${Weight} g^FS
+    ^FO115,79^ADN,18,10^FDCode : ${Code}^FS
+    ^FO315,20^ADN,18,10^FDPct : ${Percentage}%^FS
+    ^FO315,45^ADN,18,10^FDCode : ${Code}^FS
+    ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
+
+    `;
+        }
+        // Case 2: Has StoneWeight but no Percentage
+        else if (StoneWeight && !Percentage) {
+            let netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
+            
+            zplTemplate = `
+    ^XA
+    ^MD17
+    ^PW955
+    ^LL142
+    ^LH0,0
+    ^FO113,16^ADN,18,10^FD${Name}^FS
+    ^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
+    ^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
+    ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
+    ^FO335,47^ADN,18,10^FDCode : ${Code}^FS
+    ^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
+    `;
+        }
+        // Case 3: Only basic info
+        else {
+            zplTemplate = `
+    ^XA
+    ^MD17
+    ^PW955
+    ^LL142
+    ^LH0,0
+    ^FO115,35^ADN,18,10^FD${ Name}^FS
+    ^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
+    ^FO335,32^ADN,18,10^FDCode : ${Code}^FS
+    ^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
+
+    `;
+        }
         }
 
-        zplTemplate = StoneWeight ? `
-^XA
-^MD17
-^PW955
-^LL142
-^LH0,0
-^FO113,16^ADN,18,10^FD${Name}^FS
-^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
-^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
-^FO335,21^ADN,18,10^FDPct : ${Percentage}%^FS
-^FO335,47^ADN,18,10^FDCode : ${Code}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
-
-` : `
-^XA
-^MD17
-^PW955
-^LL142
-^LH0,0
-^FO115,25^ADN,18,10^FD${Name}^FS
-^FO115,53^ADN,18,10^FDWt : ${Weight} g^FS
-^FO115,79^ADN,18,10^FDCode : ${Code}^FS
-^FO315,20^ADN,18,10^FDPct : ${Percentage}%^FS
-^FO315,45^ADN,18,10^FDCode : ${Code}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
-
-`;
-      }
-      // Case 2: Has StoneWeight but no Percentage
-      else if (StoneWeight && !Percentage) {
-        let netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
-        
-        zplTemplate = `
-^XA
-^MD17
-^PW955
-^LL142
-^LH0,0
-^FO113,16^ADN,18,10^FD${Name}^FS
-^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
-^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
-^FO335,47^ADN,18,10^FDCode : ${Code}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
-`;
-      }
-      // Case 3: Only basic info
-      else {
-        zplTemplate = `
-^XA
-^MD17
-^PW955
-^LL142
-^LH0,0
-^FO115,35^ADN,18,10^FD${ Name}^FS
-^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO335,32^ADN,18,10^FDCode : ${Code}^FS
-^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
-
-`;
-      }
+        console.log(printQuantity);
 
        zplTemplate += `^PQ${printQuantity},0,1,Y\n^XZ\n`;
       // PowerShell script for Zebra printer
