@@ -1232,10 +1232,10 @@ app.get('/health', (req, res) => {
 async function printTSCLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
-      const { barcode, boxName, Cover, category, itemName } = labelData;
+      const { Code, Box, Cover, Category, Name } = labelData;
 
-      if (!barcode) {
-        return reject(new Error('Barcode is required'));
+      if (!Code) {
+        return reject(new Error('Code is required'));
       }
 
       const yPos = 315;
@@ -1251,10 +1251,10 @@ async function printTSCLabel(labelData) {
           .substring(0, 100);         
       };
 
-      const s_barcode = sanitize(barcode);
-      const s_boxName = sanitize(boxName);
+      const s_Code = sanitize(Code);
+      const s_boxName = sanitize(Box);
       const s_cover = sanitize(Cover);
-      const s_category = sanitize(category === 'Others' ? itemName : category);
+      const s_Category = sanitize(Category === 'Others' ? Name : Category);
 
         
      const labelWidth = 400;          
@@ -1265,8 +1265,8 @@ async function printTSCLabel(labelData) {
     
      const xPos = Math.floor(leftEdgeRightHalf + (rightHalfWidth - (text.length * fontWidth)) / 2);
       // Validate required field
-      if (!s_barcode || s_barcode.length === 0) {
-        return reject(new Error('Valid barcode is required'));
+      if (!s_Code || s_Code.length === 0) {
+        return reject(new Error('Valid Code is required'));
       }
 
       // Build TSPL commands with proper line endings
@@ -1275,15 +1275,15 @@ async function printTSCLabel(labelData) {
         cmd.push('GAP 2 mm,0');
         cmd.push('DIRECTION 1');
         cmd.push('CLS');
-        cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + barcode + '"');
-        cmd.push('TEXT 180,340,"2",270,1,1,"Box : ' + (boxName || '') + '"');
-        cmd.push('TEXT 205,340,"2",270,1,1,"Cover : ' + (Cover || '') + '"');
-        cmd.push('BAR 244,55,3,280');
+        cmd.push('QRCODE 35,130,H,6,A,0,M2,S7,"' + Code + '"');
+        cmd.push('TEXT 180,340,"2",270,1,1,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+        cmd.push('TEXT 205,340,"2",270,1,1,"Cover : ' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
+        cmd.push('BAR 240,35,3,300');
         cmd.push('TEXT 330,80,"4",0,1,1,"NBJ"');
-        cmd.push('TEXT ' + xPos + ',160,"2",0,1,1,"' + (category === "Others" ? itemName : category) + '"');
-        cmd.push('TEXT ' + xPos + ',190,"2",0,1,1,"' + (boxName || '') + '"');
-        cmd.push('TEXT ' + xPos + ',220,"2",0,1,1,"' + (Cover || '') + '"');
-        cmd.push('TEXT ' + xPos + ',250,"2",0,1,1,"Code : ' + barcode + '"');
+        cmd.push('TEXT ' + xPos + ',160,"2",0,1,1,"' + (Category === "Others" ? Name : Category) + '"');
+        cmd.push('TEXT ' + xPos + ',190,"2",0,1,1,"' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+        cmd.push('TEXT ' + xPos + ',220,"2",0,1,1,"' + (Cover.charAt(0).toUpperCase() + Cover.slice(1) || '') + '"');
+        cmd.push('TEXT ' + xPos + ',250,"2",0,1,1,"Code : ' + Code + '"');
         cmd.push('PRINT 1');
         cmd.push('');
 
@@ -1439,43 +1439,58 @@ app.post('/print-label-tsc', async (req, res) => {
 });
 
 
-
 async function printZebraLabel(labelData) {
   return new Promise(async (resolve, reject) => {
     try {
-      const { category, itemName, Weight, Stwt, percentage, barcode,quantity } = labelData;
+        console.log(labelData);
+      const { Category, Name, Weight, StoneWeight, Percentage, Code,Quantity,boxName,Cover } = labelData;
 
-    const printQuantity = parseInt(quantity) || 1;
+    const printQuantity = parseInt(Quantity)< 0 ? 1 : parseInt(Quantity) || 1;
+
       if (printQuantity < 1 || printQuantity > 100) {
         return reject(new Error('Quantity must be between 1 and 100'));
       }
 
-      if (!barcode || !Weight) {
-        return reject(new Error('Barcode and Weight are required'));
+      if (!Code || !Weight) {
+        return reject(new Error('Code and Weight are required'));
       }
 
       let zplTemplate = '';
+
+      if(Quantity>1){
+        `^XA
+        ^MD17
+        ^LH0,0  
+        ^FO120,20^ADN,18,10^FD${Name+" - "+Code}^FS  
+        ^FO120,45^ADN,18,10^FD${boxName}^FS
+        ^FO120,67^ADN,18,10^FD${Cover}^FS
+        ^FO335,18^ADN,18,10^FD${"NBJ"}^FS  
+        ^FO336,18^ADN,18,10^FD${"NBJ"}^FS  
+        ^FO335,43^ADN,18,10^FD${"Code : "+Code}^FS 
+        ^FO317,65^BY2,2,30^B3N,N,N,N^FD${Code}^FS
+        ^XZ`
+      }
       
-      // Case 1: Has percentage
-      if (percentage) {
+      // Case 1: Has Percentage
+      if (Percentage) {
         let netWeight;
-        if (Stwt) {
-          netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2);
+        if (StoneWeight) {
+          netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
         }
 
-        zplTemplate = Stwt ? `
+        zplTemplate = StoneWeight ? `
 ^XA
 ^MD17
 ^PW955
 ^LL142
 ^LH0,0
-^FO113,16^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO113,16^ADN,18,10^FD${Name}^FS
 ^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO113,60^ADN,18,10^FDSW : ${Stwt} grms^FS
+^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
 ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
-^FO335,21^ADN,18,10^FDPct : ${percentage}%^FS
-^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO335,21^ADN,18,10^FDPct : ${Percentage}%^FS
+^FO335,47^ADN,18,10^FDCode : ${Code}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
 
 ` : `
 ^XA
@@ -1483,18 +1498,18 @@ async function printZebraLabel(labelData) {
 ^PW955
 ^LL142
 ^LH0,0
-^FO115,25^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO115,25^ADN,18,10^FD${Name}^FS
 ^FO115,53^ADN,18,10^FDWt : ${Weight} g^FS
-^FO115,79^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,20^ADN,18,10^FDPct : ${percentage}%^FS
-^FO315,45^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO115,79^ADN,18,10^FDCode : ${Code}^FS
+^FO315,20^ADN,18,10^FDPct : ${Percentage}%^FS
+^FO315,45^ADN,18,10^FDCode : ${Code}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
 
 `;
       }
-      // Case 2: Has Stwt but no percentage
-      else if (Stwt && !percentage) {
-        let netWeight = (parseFloat(Weight) - parseFloat(Stwt)).toFixed(2);
+      // Case 2: Has StoneWeight but no Percentage
+      else if (StoneWeight && !Percentage) {
+        let netWeight = (parseFloat(Weight) - parseFloat(StoneWeight)).toFixed(2);
         
         zplTemplate = `
 ^XA
@@ -1502,12 +1517,12 @@ async function printZebraLabel(labelData) {
 ^PW955
 ^LL142
 ^LH0,0
-^FO113,16^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO113,16^ADN,18,10^FD${Name}^FS
 ^FO113,38^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO113,60^ADN,18,10^FDSW : ${Stwt} grms^FS
+^FO113,60^ADN,18,10^FDSW : ${StoneWeight} grms^FS
 ^FO113,83^ADN,18,10^FDNW : ${netWeight} grms^FS
-^FO335,47^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO335,47^ADN,18,10^FDCode : ${Code}^FS
+^FO315,66^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
 `;
       }
       // Case 3: Only basic info
@@ -1518,10 +1533,10 @@ async function printZebraLabel(labelData) {
 ^PW955
 ^LL142
 ^LH0,0
-^FO115,35^ADN,18,10^FD${category === "Others" ? itemName : category}^FS
+^FO115,35^ADN,18,10^FD${ Name}^FS
 ^FO115,60^ADN,18,10^FDWt : ${Weight} grms^FS
-^FO335,32^ADN,18,10^FDCode : ${barcode}^FS
-^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${barcode}^FS
+^FO335,32^ADN,18,10^FDCode : ${Code}^FS
+^FO315,52^BY2,2,30^B3N,N,30,N,N^FD${Code}^FS
 
 `;
       }
@@ -1662,6 +1677,7 @@ if ($ok) {
     }
   });
 }
+
 // Route - paste this where your other routes are
 app.post('/print-label-zebra', async (req, res) => {
   try {
