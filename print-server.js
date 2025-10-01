@@ -1278,10 +1278,10 @@ async function printTSCLabel(labelData) {
             cmd.push('GAP 2 mm,0');
             cmd.push('DIRECTION 1');
             cmd.push('CLS');
-            cmd.push('TEXT 200,90,"0",0,2,3,"NBJ"');
-            cmd.push('TEXT 120,150,"0",0,2,3,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
-            cmd.push('TEXT 120,210,"0",0,2,3,"Cover : ' + (s_cover.charAt(0).toUpperCase() + s_cover.slice(1) || '') + '"');
-            cmd.push('TEXT 120,270,"0",0,2,3,"Count : ' + (CoverCount || '') + '"');
+            cmd.push('TEXT 200,90,"2",0,2,3,"NBJ"');
+            cmd.push('TEXT 120,150,"2",0,2,3,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+            cmd.push('TEXT 120,210,"2",0,2,3,"Cover : ' + (s_cover.charAt(0).toUpperCase() + s_cover.slice(1) || '') + '"');
+            cmd.push('TEXT 120,270,"2",0,2,3,"Count : ' + (CoverCount || '') + '"');
             cmd.push('PRINT 1');
             cmd.push('');
       }
