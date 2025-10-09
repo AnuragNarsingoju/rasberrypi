@@ -83,7 +83,7 @@ async function generateInvoicePDF(invoiceData) {
 
 
     let baseImagePath = path.join(__dirname, 'templates', 'nbj.png');
-    if((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) === parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0))){
+    if((parseInt(invoiceData.Discount)+parseInt(invoiceData.os_price)) === parseInt(invoiceData.total.reduce((acc, val) => acc + parseInt(val), 0))  ||  invoiceData.sale_price==='0' ){
         baseImagePath =  path.join(__dirname, 'templates', 'nbj2.png');
     }
     else if(parseInt(invoiceData.sale_price)<0){
@@ -312,11 +312,11 @@ async function createInvoiceImage(baseImagePath, invoiceData) {
                         fill="rgba(0, 0, 0, 0)" />
                     <text x="${(311 + 100 / 2) * scaleX}" y="${(invoiceData.Discount > 0 ? 504 + 20 / 2 : 504 + 20 / 2) * scaleY}" 
                         font-size="${9 * scaleY}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
-                        ${invoiceData.sale_price}
+                        ${parseFloat(invoiceData.sale_price) > 0 ? invoiceData.sale_price : ''}
                     </text>
                 ` :  `<text x="${(311 + 100 / 2) * scaleX}" y="${(invoiceData.Discount > 0 ? 504 + 20 / 2 : 504 + 20 / 2) * scaleY}" 
                         font-size="${9 * scaleY}" font-weight="bold" text-anchor="middle" dominant-baseline="middle">
-                        ${Math.abs(parseInt(invoiceData.sale_price))}
+                        ${parseFloat(invoiceData.sale_price) > 0  ? Math.abs(parseInt(invoiceData.sale_price)) : ''}
                     </text>` }
 
 
@@ -1230,6 +1230,7 @@ app.get('/health', (req, res) => {
 });
 
 async function printTSCLabel(labelData) {
+    console.log(labelData);
   return new Promise(async (resolve, reject) => {
     try {
        const { Code, Box, Cover, Category, Name,CoverLabel,CoverCount } = labelData;
@@ -1258,6 +1259,8 @@ async function printTSCLabel(labelData) {
       const s_CoverLabel = CoverLabel || false;
       const s_CoverCount = CoverCount || 0;
 
+
+
         
      const labelWidth = 400;          
      const rightHalfWidth = labelWidth / 2;
@@ -1278,11 +1281,11 @@ async function printTSCLabel(labelData) {
             cmd.push('GAP 2 mm,0');
             cmd.push('DIRECTION 1');
             cmd.push('CLS');
-            cmd.push('TEXT 200,90,"2",0,2,3,"NBJ"');
-            cmd.push('TEXT 120,150,"2",0,2,3,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
-            cmd.push('TEXT 120,210,"2",0,2,3,"Cover : ' + (s_cover.charAt(0).toUpperCase() + s_cover.slice(1) || '') + '"');
-            cmd.push('TEXT 120,270,"2",0,2,3,"Count : ' + (CoverCount || '') + '"');
-            cmd.push('PRINT 1');
+            cmd.push('TEXT 200,50,"2",0,2,3,"NBJ"');
+            cmd.push('TEXT 50,120,"2",0,2,3,"Box : ' + (s_boxName.charAt(0).toUpperCase() + s_boxName.slice(1) || '') + '"');
+            cmd.push('TEXT 50,200,"2",0,2,3,"Cover : ' + (s_cover.charAt(0).toUpperCase() + s_cover.slice(1) || '') + '"');
+            cmd.push('TEXT 50,280,"2",0,2,3,"Count : ' + (s_CoverCount || '') + '"');
+            cmd.push('PRINT 2');
             cmd.push('');
       }
       else{
@@ -1473,11 +1476,15 @@ async function printZebraLabel(labelData) {
 
       let zplTemplate = '';
 
+      const wordCount = Name.length;
+      console.log(wordCount);
+      const labelText = wordCount > 7 ? Name : `${Name} - ${Code}`;
+
       if(Quantity>1){
         zplTemplate = `^XA
         ^MD17
         ^LH0,0  
-        ^FO120,25^ADN,18,10^FD${Name+" - "+Code}^FS  
+        ^FO120,25^ADN,18,10^FD${labelText}^FS  
         ^FO120,50^ADN,18,10^FD${boxName}^FS
         ^FO120,75^ADN,18,10^FD${Cover}^FS
         ^FO335,18^ADN,18,10^FD${"NBJ"}^FS  
