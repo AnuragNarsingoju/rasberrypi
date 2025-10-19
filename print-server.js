@@ -1086,7 +1086,7 @@ class TSCTextAligner {
   centerTextVertical(text, fontCode, availableHeight, xMul = 1) {
     const textWidth = this.calculateTextWidth(text, fontCode, xMul);
     // For 270° rotation, text flows upward, so we center it
-    return Math.round((availableHeight - textWidth) / 2 + textWidth);
+    return Math.round((availableHeight - textWidth -30) / 2 + textWidth);
   }
 }
 
@@ -1098,7 +1098,6 @@ async function GiriviLabelPrint(labelData) {
     try {
       const {
         Code,
-        Date = '',
         Name = '',
         Phone = '',
         Address = '',
@@ -1108,7 +1107,8 @@ async function GiriviLabelPrint(labelData) {
         Item2 = '',
         Weight2 = ''
       } = labelData;
-
+      const DateValue = labelData.Date
+      
       // Validate required field
       if (!Code) {
         return reject(new Error('Code is required for label printing'));
@@ -1121,60 +1121,55 @@ async function GiriviLabelPrint(labelData) {
           .replace(/[\r\n\t]/g, ' ')
           .replace(/"/g, '\\"')
           .replace(/\\/g, '\\\\')
-          .trim()
-          .substring(0, 50); // Limit length
+          .trim();
+      };
+
+      // Function to split text into multiple lines if needed
+      const splitText = (label, value, maxLength = 16) => {
+        const sanitized = sanitize(value);
+        if (!sanitized) return [`${label} : `];
+        
+        const fullText = `${label} : ${sanitized}`;
+        const lines = [];
+        
+        if (fullText.length <= maxLength) {
+          lines.push(fullText);
+        } else {
+          // First line with label
+          lines.push(fullText.substring(0, maxLength));
+          
+          // Remaining text split into chunks
+          let remaining = fullText.substring(maxLength);
+          while (remaining.length > 0) {
+            lines.push(remaining.substring(0, maxLength));
+            remaining = remaining.substring(maxLength);
+          }
+        }
+        
+        return lines;
       };
 
       // Sanitize all inputs
       const s_Code = sanitize(Code);
-      const s_Date = sanitize(Date);
-      const s_Name = sanitize(Name);
-      const s_Phone = sanitize(Phone);
-      const s_Address = sanitize(Address);
-      const s_Taken = sanitize(Taken);
-      const s_Item1 = sanitize(Item1);
-      const s_Weight1 = sanitize(Weight1);
-      const s_Item2 = sanitize(Item2);
-      const s_Weight2 = sanitize(Weight2);
+      const s_Date = sanitize(DateValue);
+
+      // Split long text into multiple lines
+      const nameLines = splitText('Name', Name, 24);
+      const phoneLines = splitText('Phone', Phone, 24);
+      const addressLines = splitText('Address', Address, 24);
+      const takenLines = splitText('Amount', Taken, 24);
+      const item1Lines = splitText('Item', Item1, 24);
+      const wt1Lines = splitText('Wt', Weight1, 24);
+      const item2Lines = splitText('Item', Item2, 24);
+      const wt2Lines = splitText('Wt', Weight2, 24);
 
       // Initialize text aligner
       const aligner = new TSCTextAligner();
 
       // Label dimensions (60mm x 45mm at 203 DPI)
-      const labelWidth = 472;  // dots
-      const labelHeight = 354; // dots
-      const barPosition = 240; // X position of vertical bar
-
-      // Available space for vertical text (270° rotation)
-      const leftSectionHeight = 300; // Available height for left section
-      const rightSectionHeight = 300; // Available height for right section
-
-      // Build text strings with labels
-      const codeText = `CODE : ${s_Code}`;
-      const dateText = `Date : ${s_Date}`;
-      const nameText = `Name : ${s_Name}`;
-      const phoneText = `Phone : ${s_Phone}`;
-      const addressText = `Address : ${s_Address}`;
-      const takenText = `Taken : ${s_Taken}`;
-      const item1Text = `Item : ${s_Item1}`;
-      const wt1Text = `Wt : ${s_Weight1}`;
-      const item2Text = `Item : ${s_Item2}`;
-      const wt2Text = `Wt : ${s_Weight2}`;
-
-      // Calculate centered Y positions for 270° rotated text (flows upward)
-      // Left section (before BAR)
-      const codeY = aligner.centerTextVertical(codeText, '4', leftSectionHeight);
-      const dateY = aligner.centerTextVertical(dateText, '3', leftSectionHeight);
-      const nameY = aligner.centerTextVertical(nameText, '3', leftSectionHeight);
-      const phoneY = aligner.centerTextVertical(phoneText, '3', leftSectionHeight);
-      const addressY = aligner.centerTextVertical(addressText, '3', leftSectionHeight);
-      const takenY = aligner.centerTextVertical(takenText, '3', leftSectionHeight);
-
-      // Right section (after BAR)
-      const item1Y = aligner.centerTextVertical(item1Text, '3', rightSectionHeight);
-      const wt1Y = aligner.centerTextVertical(wt1Text, '3', 200); // Shorter space for weight
-      const item2Y = aligner.centerTextVertical(item2Text, '3', rightSectionHeight);
-      const wt2Y = aligner.centerTextVertical(wt2Text, '3', 200);
+      const labelWidth = 472;
+      const labelHeight = 354;
+      const lineSpacing = 25; // Spacing between lines for multi-line text
 
       // Build TSPL commands
       const cmd = [];
@@ -1184,21 +1179,95 @@ async function GiriviLabelPrint(labelData) {
       cmd.push('CLS');
       
       // Left section - Vertical text (270° rotation)
-      cmd.push(`TEXT 30,${codeY},"4",270,1,1,"${codeText}"`);
-      cmd.push(`TEXT 90,${dateY},"3",270,1,1,"${dateText}"`);
-      cmd.push(`TEXT 120,${nameY},"3",270,1,1,"${nameText}"`);
-      cmd.push(`TEXT 150,${phoneY},"3",270,1,1,"${phoneText}"`);
-      cmd.push(`TEXT 180,${addressY},"3",270,1,1,"${addressText}"`);
-      cmd.push(`TEXT 210,${takenY},"3",270,1,1,"${takenText}"`);
+      let currentX = 30;
+      
+      // Code (larger font)
+      cmd.push(`TEXT ${currentX},350,"3",270,2,2,"${s_Code}"`);
+      currentX += 60;
+      
+      // Date
+      cmd.push(`TEXT ${currentX},350,"2",270,1,1,"Date : ${s_Date}"`);
+      currentX += 30;
+      
+      // Name (multi-line support)
+      nameLines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 20); // More space after label line
+      });
+      
+      // Phone (multi-line support)
+      phoneLines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 20);
+      });
+      
+      // Address (multi-line support)
+      addressLines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 20);
+      });
+      
+      // Amount (multi-line support)
+      takenLines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 20);
+      });
       
       // Vertical separator bar
-      cmd.push('BAR 240,35,3,300');
+      const barPosition = currentX + 10;
+      cmd.push(`BAR ${barPosition},35,3,300`);
       
       // Right section - Vertical text (270° rotation)
-      cmd.push(`TEXT 280,${item1Y},"3",270,1,1,"${item1Text}"`);
-      cmd.push(`TEXT 280,${wt1Y},"3",270,1,1,"${wt1Text}"`);
-      cmd.push(`TEXT 320,${item2Y},"3",270,1,1,"${item2Text}"`);
-      cmd.push(`TEXT 320,${wt2Y},"3",270,1,1,"${wt2Text}"`);
+      currentX = barPosition + 25;
+      
+      // Item 1 (multi-line support)
+      item1Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 20 : 18);
+      });
+      
+      // Weight 1 (multi-line support)
+      wt1Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 18);
+      });
+
+      // Item 2 (multi-line support)
+      item2Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 20 : 18);
+      });
+      
+      // Weight 2 (multi-line support)
+      wt2Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 18);
+      });
+
+      // Repeat for right side columns
+      currentX += 5;
+      
+      item1Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 20 : 18);
+      });
+      
+      wt1Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 18);
+      });
+
+      currentX += 5;
+      
+      item2Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 20 : 18);
+      });
+      
+      wt2Lines.forEach((line, idx) => {
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        currentX += (idx === 0 ? 25 : 18);
+      });
       
       cmd.push('PRINT 1');
       cmd.push('');
@@ -1347,29 +1416,11 @@ if ($ok) {
   });
 }
 
-async function example1() {
-  try {
-    const result = await GiriviLabelPrint({
-      Code: 'NBJ-24',
-      Date: '15-11-2004',
-      Name: 'Anurag Naik',
-      Phone: '9876543210',
-      Address: '123 Main Street, Hyderabad',
-      Taken: 'John Doe',
-      Item1: 'Laptop Charger',
-      Weight1: '2.5 kg',
-      Item2: 'Mouse Pad',
-      Weight2: '0.1 kg'
-    });
-    console.log('Print Success:', result);
-  } catch (error) {
-    console.error('Print Failed:', error.message);
-  }
-}
 
 app.post('/print-girivi-label', async (req, res) => {
   try {
     const result = await GiriviLabelPrint(req.body);
+    console.log(result);
     res.json(result);
   } catch (error) {
     res.status(500).json({ 
