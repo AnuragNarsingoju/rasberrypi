@@ -1156,6 +1156,7 @@ async function GiriviLabelPrint(labelData) {
       // Sanitize all inputs
       const s_Code = sanitize(Code);
       const s_Date = sanitize(DateValue);
+      const getLines = (label, value, maxWidth) => value === '' ? '' : splitText(label, value, maxWidth);
 
       // Split long text into multiple lines
       const nameLines = splitText('Name', Name, 24);
@@ -1164,12 +1165,12 @@ async function GiriviLabelPrint(labelData) {
       const takenLines = splitText('Amount', Taken, 24);
       const item1Lines = splitText('Item', Item1, 24);
       const wt1Lines = splitText('Wt', Weight1, 24);
-      const item2Lines = splitText('Item', Item2, 24);
-      const wt2Lines = splitText('Wt', Weight2, 24);
-      const item3Lines = splitText('Item', Item3, 24);
-      const wt3Lines = splitText('Wt', Weight3, 24);
-      const item4Lines = splitText('Item', Item4, 24);
-      const wt4Lines = splitText('Wt', Weight4, 24);
+      const item2Lines = getLines('Item', Item2, 24);
+        const wt2Lines = getLines('Wt', Weight2, 24);
+        const item3Lines = getLines('Item', Item3, 24);
+        const wt3Lines = getLines('Wt', Weight3, 24);
+        const item4Lines = getLines('Item', Item4, 24);
+        const wt4Lines = getLines('Wt', Weight4, 24);
 
       // Initialize text aligner
       const aligner = new TSCTextAligner();
@@ -1177,7 +1178,18 @@ async function GiriviLabelPrint(labelData) {
       // Label dimensions (60mm x 45mm at 203 DPI)
       const labelWidth = 472;
       const labelHeight = 354;
-      const lineSpacing = 25; // Spacing between lines for multi-line text
+      const lineSpacing = 25; // Spacing between lines for multi-line text4
+
+     const renderLines = (lines, firstLineOffset, otherLineOffset) => {
+        if (lines !== '') {
+            lines.forEach((line, idx) => {
+            console.log(line);
+            const text = line.startsWith('Wt') ? `${line} grams` : line;
+            cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${text}"`);
+            currentX += (idx === 0 ? firstLineOffset : otherLineOffset);
+            });
+        }
+        };
 
       // Build TSPL commands
       const cmd = [];
@@ -1216,10 +1228,11 @@ async function GiriviLabelPrint(labelData) {
       });
       
       // Amount (multi-line support)
-      takenLines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+    takenLines.forEach((line, idx) => {
+        const text = idx === 0 ? line.replace('Amount :', 'Amount : Rs.') : line;
+        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${text}"`);
         currentX += (idx === 0 ? 25 : 20);
-      });
+    });
       
       // Vertical separator bar
       const barPosition = currentX + 10;
@@ -1236,46 +1249,25 @@ async function GiriviLabelPrint(labelData) {
       
       // Weight 1 (multi-line support)
       wt1Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
+        cmd.push(`TEXT ${currentX},348,"2",270,1,1,"${line} grams"`);
         currentX += (idx === 0 ? 25 : 18);
       });
 
       // Item 2 (multi-line support)
-      item2Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 20 : 18);
-      });
-      
-      // Weight 2 (multi-line support)
-      wt2Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 25 : 18);
-      });
+     renderLines(item2Lines, 20, 18);
+    renderLines(wt2Lines, 25, 18);
 
-      // Repeat for right side columns
-      currentX += 5;
-      
-      item3Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 20 : 18);
-      });
-      
-      wt3Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 25 : 18);
-      });
+    currentX += 5;
 
-      currentX += 5;
-      
-      item4Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 20 : 18);
-      });
-      
-      wt4Lines.forEach((line, idx) => {
-        cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
-        currentX += (idx === 0 ? 25 : 18);
-      });
+    // Item 3
+    renderLines(item3Lines, 20, 18);
+    renderLines(wt3Lines, 25, 18);
+
+    currentX += 5;
+
+    // Item 4
+    renderLines(item4Lines, 20, 18);
+    renderLines(wt4Lines, 25, 18);
       
       cmd.push('PRINT 1');
       cmd.push('');
@@ -1431,8 +1423,8 @@ app.post('/print-girivi-label', async (req, res) => {
           Code: req.body.Code,
           Name: req.body.Name,
           Phone: req.body.Mobile || req.body.Phone1 || '',
-          Address: req.body.Address,
-          Date: req.body.StartDate,
+          Address: req.body.Address || req.body.City || '-----',
+          Date: req.body.StartDate.split('-').reverse().join('-'),
           Taken: req.body.PrincipalAmount,
           Item1: req.body.Items[0] || '',
           Weight1: req.body.Gross[0] || '',
@@ -1443,8 +1435,7 @@ app.post('/print-girivi-label', async (req, res) => {
           Item4: req.body.Items[3] || '',
           Weight4: req.body.Gross[3] || ''
         };
-    const result = await GiriviLabelPrint(req.body);
-    console.log(result);
+    const result = await GiriviLabelPrint(labelData);
     res.json(result);
   } catch (error) {
     res.status(500).json({ 
