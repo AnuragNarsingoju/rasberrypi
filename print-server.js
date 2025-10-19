@@ -1105,7 +1105,11 @@ async function GiriviLabelPrint(labelData) {
         Item1 = '',
         Weight1 = '',
         Item2 = '',
-        Weight2 = ''
+        Weight2 = '',
+        Item3 = '',
+        Weight3 = '',
+        Item4 = '',
+        Weight4 = ''
       } = labelData;
       const DateValue = labelData.Date
       
@@ -1162,6 +1166,10 @@ async function GiriviLabelPrint(labelData) {
       const wt1Lines = splitText('Wt', Weight1, 24);
       const item2Lines = splitText('Item', Item2, 24);
       const wt2Lines = splitText('Wt', Weight2, 24);
+      const item3Lines = splitText('Item', Item3, 24);
+      const wt3Lines = splitText('Wt', Weight3, 24);
+      const item4Lines = splitText('Item', Item4, 24);
+      const wt4Lines = splitText('Wt', Weight4, 24);
 
       // Initialize text aligner
       const aligner = new TSCTextAligner();
@@ -1247,24 +1255,24 @@ async function GiriviLabelPrint(labelData) {
       // Repeat for right side columns
       currentX += 5;
       
-      item1Lines.forEach((line, idx) => {
+      item3Lines.forEach((line, idx) => {
         cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
         currentX += (idx === 0 ? 20 : 18);
       });
       
-      wt1Lines.forEach((line, idx) => {
+      wt3Lines.forEach((line, idx) => {
         cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
         currentX += (idx === 0 ? 25 : 18);
       });
 
       currentX += 5;
       
-      item2Lines.forEach((line, idx) => {
+      item4Lines.forEach((line, idx) => {
         cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
         currentX += (idx === 0 ? 20 : 18);
       });
       
-      wt2Lines.forEach((line, idx) => {
+      wt4Lines.forEach((line, idx) => {
         cmd.push(`TEXT ${currentX},350,"2",270,1,1,"${line}"`);
         currentX += (idx === 0 ? 25 : 18);
       });
@@ -1419,6 +1427,22 @@ if ($ok) {
 
 app.post('/print-girivi-label', async (req, res) => {
   try {
+       const labelData = {
+          Code: req.body.Code,
+          Name: req.body.Name,
+          Phone: req.body.Mobile || req.body.Phone1 || '',
+          Address: req.body.Address,
+          Date: req.body.StartDate,
+          Taken: req.body.PrincipalAmount,
+          Item1: req.body.Items[0] || '',
+          Weight1: req.body.Gross[0] || '',
+          Item2: req.body.Items[1] || '',
+          Weight2: req.body.Gross[1] || '',
+          Item3: req.body.Items[2] || '',
+          Weight3: req.body.Gross[2] || '',
+          Item4: req.body.Items[3] || '',
+          Weight4: req.body.Gross[3] || ''
+        };
     const result = await GiriviLabelPrint(req.body);
     console.log(result);
     res.json(result);
